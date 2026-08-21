@@ -8,6 +8,9 @@ router.post('/iniciar', WompiController.iniciarPago.bind(WompiController));
 // POST /api/wompi/confirmar -> El frontend confirma tras un resultado aprobado del Widget
 router.post('/confirmar', WompiController.confirmarPago.bind(WompiController));
 
+// POST /api/wompi/cancelar -> El frontend avisa que el pago fue rechazado/cerrado
+router.post('/cancelar', WompiController.cancelarPago.bind(WompiController));
+
 // POST /api/wompi/webhook -> Notificación asíncrona oficial de Wompi (transaction.updated)
 router.post('/webhook', WompiController.webhook.bind(WompiController));
 

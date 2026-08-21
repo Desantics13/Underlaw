@@ -29,14 +29,11 @@ const Navbar = () => {
       >
         <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
 
-          {/* ── Left: desktop links ── */}
-          <div style={{ flex: 1, display: 'flex', gap: '1.5rem' }} className="nav-desktop-links">
-            <Link to="/" style={linkStyle}>Inicio</Link>
-            <Link to="/products" style={linkStyle}>Colección</Link>
-          </div>
+          {/* ── Left: spacer (mantiene el logo centrado) ── */}
+          <div style={{ flex: 1, display: 'flex', gap: '1.5rem' }} className="nav-desktop-links" />
 
           {/* ── Center: Logo ── */}
-          <Link to="/" onClick={closeMobile} style={{ flex: 1, textAlign: 'center', fontSize: isScrolled ? '1.4rem' : '2rem', transition: 'all 0.4s ease', fontFamily: 'var(--font-serif)', fontStyle: 'italic', whiteSpace: 'nowrap' }}>
+          <Link to="/" onClick={closeMobile} style={{ flex: 1, textAlign: 'center', fontSize: isScrolled ? '1.4rem' : '2rem', transition: 'all 0.4s ease', fontFamily: 'var(--font-serif)', fontStyle: 'normal', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
             Under Law
           </Link>
 

@@ -2,34 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingCart, X, Plus, Minus } from 'lucide-react';
 import { jsPDF } from "jspdf";
-import buddhaModelImg from '../assets/buddha-model.jpg';
-import oversizedFirstImg from '../assets/oversized-first.jpg';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const WOMPI_WIDGET_SCRIPT_ID = 'wompi-widget-script';
 
-const productsList = [
-  { 
-    id: 1, 
-    name: 'Oversized Buddha Tee', 
-    price: 110000, 
-    image: buddhaModelImg, 
-    category: 'Camisetas' 
-  },
-  {
-    id: 2,
-    name: 'Oversized First',
-    price: 110000,
-    image: oversizedFirstImg,
-    category: 'Camisetas'
-  }
-];
-
 const Products = () => {
+  const [productsList, setProductsList] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [checkoutStep, setCheckoutStep] = useState('cart'); // cart, info, payment, declined, success
-  const [formData, setFormData] = useState({ name: '', lastName: '', phone: '', email: '', doc: '' });
+  const [checkoutStep, setCheckoutStep] = useState('cart'); // cart, info, address, payment, declined, success
+  const [formData, setFormData] = useState({ name: '', lastName: '', phone: '', email: '', doc: '', pais: '', municipio: '', ciudad: '', direccion: '' });
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState('');
   const [declineStatus, setDeclineStatus] = useState('');
@@ -41,6 +24,25 @@ const Products = () => {
     script.id = WOMPI_WIDGET_SCRIPT_ID;
     script.src = 'https://checkout.wompi.co/widget.js';
     document.body.appendChild(script);
+  }, []);
+
+  // Carga el catálogo real desde el backend (gestionado en el panel "Productos" del Admin)
+  useEffect(() => {
+    fetch(`${API_URL}/api/catalogo`)
+      .then(res => res.json())
+      .then(data => {
+        const formatted = data.map(p => ({
+          id: p.id,
+          name: p.nombre_producto,
+          lanzamiento: p.nombre_lanzamiento,
+          price: Number(p.precio),
+          image: p.imagen || null,
+          estado: p.estado
+        }));
+        setProductsList(formatted);
+      })
+      .catch(err => console.error('Error al obtener el catálogo:', err))
+      .finally(() => setLoadingProducts(false));
   }, []);
 
   const addToCart = (product) => {
@@ -101,15 +103,17 @@ const Products = () => {
     return pdfBase64;
   };
 
-  const registrarNotificacionAdmin = () => {
-    const notificaciones = JSON.parse(localStorage.getItem('underlaw_notificaciones')) || [];
-    notificaciones.unshift({
-      id: Date.now(),
-      mensaje: `Nueva compra de ${formData.name} ${formData.lastName} — ${cart.map(c => c.name).join(', ')}`,
-      leida: false,
-      fecha: new Date().toLocaleString()
-    });
-    localStorage.setItem('underlaw_notificaciones', JSON.stringify(notificaciones));
+  // Avisa al backend que el pedido PENDING se canceló (widget cerrado o pago rechazado)
+  const cancelarPedidoBackend = async (reference, estado_pago) => {
+    try {
+      await fetch(`${API_URL}/api/wompi/cancelar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reference, estado_pago })
+      });
+    } catch (error) {
+      console.error('Error al marcar el pedido como cancelado:', error);
+    }
   };
 
   // Abre el Widget de Wompi (tarjeta y PSE) con los datos ya firmados por el backend
@@ -152,6 +156,7 @@ const Products = () => {
         if (el instanceof HTMLElement && el.classList.contains('waybox-backdrop') && el.hasAttribute('hidden')) {
           settled = true;
           observer.disconnect();
+          cancelarPedidoBackend(reference, 'VOIDED');
           setDeclineStatus('');
           setIsProcessing(false);
           setCheckoutStep('declined');
@@ -168,28 +173,43 @@ const Products = () => {
 
       const transaction = result?.transaction;
 
-      if (transaction && transaction.status === 'APPROVED') {
-        const pdfBase64 = buildInvoicePdf();
+      try {
+        if (transaction && transaction.status === 'APPROVED') {
+          // Generar el PDF es un "extra" para el cliente: si falla (p. ej. el
+          // navegador bloquea la descarga), NO debe impedir que confirmemos el
+          // pago con el backend — eso es lo que de verdad importa acá.
+          let pdfBase64 = null;
+          try {
+            pdfBase64 = buildInvoicePdf();
+          } catch (pdfError) {
+            console.error('Error al generar la factura en PDF (el pago sí se confirma igual):', pdfError);
+          }
 
-        try {
-          await fetch(`${API_URL}/api/wompi/confirmar`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ reference, pdfBase64 })
-          });
-        } catch (error) {
-          console.error('Error al confirmar el pedido con el backend:', error);
+          try {
+            await fetch(`${API_URL}/api/wompi/confirmar`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ reference, pdfBase64 })
+            });
+          } catch (error) {
+            console.error('Error al confirmar el pedido con el backend:', error);
+          }
+
+          setCheckoutStep('success');
+          setCart([]);
+        } else {
+          // Pago rechazado/anulado (esto sí llega con transaction definido)
+          cancelarPedidoBackend(reference, transaction?.status || 'VOIDED');
+          setDeclineStatus(transaction?.status || '');
+          setCheckoutStep('declined');
         }
-
-        registrarNotificacionAdmin();
+      } catch (error) {
+        // Red de seguridad: si algo inesperado falla arriba, igual liberamos el
+        // botón de pago en vez de dejar la UI pegada en "Abriendo pago seguro...".
+        console.error('Error inesperado al procesar el resultado del pago:', error);
+        setPaymentError('Tu pago se procesó, pero hubo un problema al finalizar el pedido. Escríbenos si no recibes la confirmación.');
+      } finally {
         setIsProcessing(false);
-        setCheckoutStep('success');
-        setCart([]);
-      } else {
-        // Pago rechazado/anulado (esto sí llega con transaction definido)
-        setDeclineStatus(transaction?.status || '');
-        setIsProcessing(false);
-        setCheckoutStep('declined');
       }
     });
   };
@@ -225,9 +245,6 @@ const Products = () => {
         <header className="collection-header">
           <div>
             <h1 className="font-serif italic collection-h1" style={{ marginBottom: '1rem' }}>Colección</h1>
-            <div style={{ display: 'flex', gap: '2rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)' }}>
-              <span style={{ color: 'var(--text-primary)', borderBottom: '1px solid white', cursor: 'pointer' }}>Exclusivo</span>
-            </div>
           </div>
           <button 
             onClick={() => setIsCartOpen(true)}
@@ -243,8 +260,14 @@ const Products = () => {
         </header>
 
         <div className="products-grid">
-          {productsList.map((product, index) => (
-            <motion.div 
+          {loadingProducts ? (
+            <p style={{ color: 'var(--text-muted)' }}>Cargando colección...</p>
+          ) : productsList.length === 0 ? (
+            <p style={{ color: 'var(--text-muted)' }}>Aún no hay productos disponibles. Vuelve pronto.</p>
+          ) : productsList.map((product, index) => {
+            const disponible = product.estado !== 'suspendido';
+            return (
+            <motion.div
               key={product.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -252,21 +275,30 @@ const Products = () => {
               className="product-card"
             >
               <div className="premium-card" style={{ position: 'relative', marginBottom: '1.5rem', aspectRatio: '3/4', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0c0c0c', overflow: 'hidden' }}>
-                <img 
-                  src={product.image} 
-                  alt={product.name} 
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.6s ease' }}
+                <img
+                  src={product.image}
+                  alt={product.name}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.6s ease', opacity: disponible ? 1 : 0.4 }}
                   className="product-image"
                 />
-                <div className="card-overlay" style={{ position: 'absolute', bottom: '1.5rem', left: '1.5rem', right: '1.5rem', opacity: 0, transition: 'var(--transition)' }}>
-                  <button onClick={() => addToCart(product)} className="premium-button" style={{ width: '100%', padding: '1rem' }}>Añadir al Carrito</button>
-                </div>
+                {disponible ? (
+                  <div className="card-overlay" style={{ position: 'absolute', bottom: '1.5rem', left: '1.5rem', right: '1.5rem', opacity: 0, transition: 'var(--transition)' }}>
+                    <button onClick={() => addToCart(product)} className="premium-button" style={{ width: '100%', padding: '1rem' }}>Añadir al Carrito</button>
+                  </div>
+                ) : (
+                  <div style={{ position: 'absolute', top: '1rem', left: '1rem', background: 'rgba(0,0,0,0.85)', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '0.4rem 0.8rem' }}>
+                    No disponible
+                  </div>
+                )}
               </div>
-              <p style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>{product.category}</p>
+              {product.lanzamiento && (
+                <p style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>{product.lanzamiento}</p>
+              )}
               <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', fontWeight: '400' }}>{product.name}</h3>
               <p style={{ fontSize: '1.1rem', fontWeight: '300' }}>${product.price.toLocaleString('es-CO')} COP</p>
             </motion.div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -290,7 +322,7 @@ const Products = () => {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexShrink: 0 }}>
                 <h2 className="font-serif italic" style={{ fontSize: '2rem' }}>
-                  {checkoutStep === 'cart' ? 'Tu Carrito' : checkoutStep === 'info' ? 'Tus Datos' : checkoutStep === 'payment' ? 'Pago' : checkoutStep === 'declined' ? 'Pago no completado' : '¡Gracias!'}
+                  {checkoutStep === 'cart' ? 'Tu Carrito' : checkoutStep === 'info' ? 'Tus Datos' : checkoutStep === 'address' ? 'Dirección de Envío' : checkoutStep === 'payment' ? 'Pago' : checkoutStep === 'declined' ? 'Pago no completado' : '¡Gracias!'}
                 </h2>
                 <button onClick={() => { setIsProcessing(false); setIsCartOpen(false); setTimeout(() => setCheckoutStep('cart'), 500); }}><X size={24} /></button>
               </div>
@@ -331,7 +363,7 @@ const Products = () => {
               )}
 
               {checkoutStep === 'info' && (
-                <form onSubmit={(e) => { e.preventDefault(); setCheckoutStep('payment'); }} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                <form onSubmit={(e) => { e.preventDefault(); setCheckoutStep('address'); }} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', flex: 1, overflowY: 'auto', paddingRight: '1rem', paddingBottom: '2rem' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -358,8 +390,36 @@ const Products = () => {
                   </div>
                   
                   <div style={{ flexShrink: 0, paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
-                    <button type="submit" className="premium-button" style={{ width: '100%', padding: '1.2rem' }}>Continuar al Pago</button>
+                    <button type="submit" className="premium-button" style={{ width: '100%', padding: '1.2rem' }}>Continuar Proceso</button>
                     <button type="button" onClick={() => setCheckoutStep('cart')} style={{ width: '100%', padding: '1rem', background: 'transparent', border: 'none', color: 'var(--text-muted)', marginTop: '0.5rem', cursor: 'pointer' }}>Volver al Carrito</button>
+                  </div>
+                </form>
+              )}
+
+              {checkoutStep === 'address' && (
+                <form onSubmit={(e) => { e.preventDefault(); setCheckoutStep('payment'); }} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', flex: 1, overflowY: 'auto', paddingRight: '1rem', paddingBottom: '2rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>País</label>
+                      <input type="text" name="pais" required value={formData.pais} onChange={handleInputChange} style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'white', padding: '0.5rem 0' }} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Municipio</label>
+                      <input type="text" name="municipio" required value={formData.municipio} onChange={handleInputChange} style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'white', padding: '0.5rem 0' }} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Ciudad</label>
+                      <input type="text" name="ciudad" required value={formData.ciudad} onChange={handleInputChange} style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'white', padding: '0.5rem 0' }} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Dirección</label>
+                      <input type="text" name="direccion" required value={formData.direccion} onChange={handleInputChange} style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'white', padding: '0.5rem 0' }} />
+                    </div>
+                  </div>
+
+                  <div style={{ flexShrink: 0, paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                    <button type="submit" className="premium-button" style={{ width: '100%', padding: '1.2rem' }}>Continuar al Pago</button>
+                    <button type="button" onClick={() => setCheckoutStep('info')} style={{ width: '100%', padding: '1rem', background: 'transparent', border: 'none', color: 'var(--text-muted)', marginTop: '0.5rem', cursor: 'pointer' }}>Volver atrás</button>
                   </div>
                 </form>
               )}
@@ -381,7 +441,7 @@ const Products = () => {
                     <button type="submit" disabled={isProcessing} className="premium-button" style={{ width: '100%', padding: '1.2rem', opacity: isProcessing ? 0.6 : 1, cursor: isProcessing ? 'not-allowed' : 'pointer' }}>
                       {isProcessing ? 'Abriendo pago seguro...' : 'Pagar con Wompi'}
                     </button>
-                    <button type="button" onClick={() => setCheckoutStep('info')} style={{ width: '100%', padding: '1rem', background: 'transparent', border: 'none', color: 'var(--text-muted)', marginTop: '0.5rem', cursor: 'pointer' }}>Volver atrás</button>
+                    <button type="button" onClick={() => setCheckoutStep('address')} style={{ width: '100%', padding: '1rem', background: 'transparent', border: 'none', color: 'var(--text-muted)', marginTop: '0.5rem', cursor: 'pointer' }}>Volver atrás</button>
                   </div>
                 </form>
               )}

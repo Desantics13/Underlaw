@@ -1,39 +1,17 @@
 import React from 'react';
 import { Instagram, Facebook, Twitter, Globe } from 'lucide-react';
-import logo from '../assets/logo.png';
 
 const Footer = () => {
   return (
     <footer style={{ backgroundColor: '#000', borderTop: '1px solid var(--border)', padding: '6rem 0 3rem 0', marginTop: '5rem' }}>
       <div className="container">
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '4rem', marginBottom: '5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '4rem', marginBottom: '5rem' }}>
           <div>
-            <img src={logo} alt="Under Law" style={{ height: '40px', marginBottom: '2rem' }} />
             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: '1.8', maxWidth: '300px' }}>
               Estableciendo un nuevo estándar en el streetwear de lujo. Under Law es más que ropa, es una declaración de independencia.
             </p>
           </div>
-          
-          <div>
-            <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: '2rem' }}>Explorar</h4>
-            <ul style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              <li>Colección</li>
-              <li>Lo Más Vendido</li>
-              <li>Accesorios</li>
-              <li>Lookbook</li>
-            </ul>
-          </div>
-          
-          <div>
-            <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: '2rem' }}>Ayuda</h4>
-            <ul style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              <li>Envíos</li>
-              <li>Devoluciones</li>
-              <li>Guía de Tallas</li>
-              <li>Contacto</li>
-            </ul>
-          </div>
-          
+
           <div>
             <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: '2rem' }}>Síguenos</h4>
             <div style={{ display: 'flex', gap: '1.5rem' }}>

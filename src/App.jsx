@@ -4,6 +4,7 @@ import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Products from './pages/Products';
 import Footer from './components/Footer';
+import WhatsAppButton from './components/WhatsAppButton';
 
 import Admin from './pages/Admin';
 
@@ -20,6 +21,7 @@ function App() {
           </Routes>
         </main>
         <Footer />
+        <WhatsAppButton />
       </div>
     </Router>
   );

@@ -1,9 +1,12 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 
 const pedidoRoutes = require('./routes/pedidoRoutes');
 const wompiRoutes = require('./routes/wompiRoutes');
+const catalogoRoutes = require('./routes/catalogoRoutes');
+const notificacionRoutes = require('./routes/notificacionRoutes');
 
 const app = express();
 
@@ -12,9 +15,14 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(cors());
 
+// Sirve las imágenes de productos guardadas localmente (ver services/ImageStorageService.js)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Rutas base
 app.use('/api/pedidos', pedidoRoutes);
 app.use('/api/wompi', wompiRoutes);
+app.use('/api/catalogo', catalogoRoutes);
+app.use('/api/notificaciones', notificacionRoutes);
 
 // Manejo de errores global
 app.use((err, req, res, next) => {

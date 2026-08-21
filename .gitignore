@@ -15,6 +15,10 @@ dist-ssr
 .env.*
 backend/.env
 
+# Imágenes de productos subidas localmente (almacenamiento temporal, ver ImageStorageService.js)
+backend/uploads/productos/*
+!backend/uploads/productos/.gitkeep
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

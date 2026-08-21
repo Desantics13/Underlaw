@@ -30,8 +30,14 @@ class PedidoRepository {
   }
 
   // Método opcional para obtener todos los pedidos (para el Dashboard)
+  // Incluye la dirección de envío asociada (si existe) mediante LEFT JOIN
   async findAll() {
-    const query = 'SELECT * FROM producto ORDER BY fecha_compra DESC';
+    const query = `
+      SELECT p.*, d.pais, d.municipio, d.ciudad, d.direccion AS direccion_envio
+      FROM producto p
+      LEFT JOIN direccion d ON d.pedido_id = p.id
+      ORDER BY p.fecha_compra DESC
+    `;
     try {
       const [rows] = await db.execute(query);
       return rows;
