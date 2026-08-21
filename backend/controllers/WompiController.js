@@ -2,6 +2,7 @@ const PedidoRepository = require('../repositories/PedidoRepository');
 const DireccionRepository = require('../repositories/DireccionRepository');
 const NotificacionRepository = require('../repositories/NotificacionRepository');
 const EmailService = require('../services/EmailService');
+const InvoiceService = require('../services/InvoiceService');
 const WompiService = require('../services/WompiService');
 const Pedido = require('../models/Pedido');
 const wompiConfig = require('../config/wompi');
@@ -77,18 +78,19 @@ class WompiController {
 
       // El envío del correo se intenta aparte: si falla (Gmail caído, etc.) no debe
       // impedir que el pago quede marcado como APROBADO — eso es lo que ya cobró Wompi.
+      // Si el navegador no alcanzó a mandar su PDF, lo generamos acá con lo que ya
+      // quedó guardado en BD, para que la factura llegue siempre.
       let email_enviado = false;
-      if (pdfBase64) {
-        try {
-          await EmailService.sendInvoiceEmail(
-            pedido.correo_cliente,
-            `${pedido.nombre_cliente} ${pedido.apellido_cliente}`,
-            pdfBase64
-          );
-          email_enviado = true;
-        } catch (emailError) {
-          console.error('Error al enviar la factura por correo (el pago sí queda confirmado):', emailError);
-        }
+      try {
+        const facturaPdf = pdfBase64 || await InvoiceService.buildInvoicePdfBase64(pedido);
+        await EmailService.sendInvoiceEmail(
+          pedido.correo_cliente,
+          `${pedido.nombre_cliente} ${pedido.apellido_cliente}`,
+          facturaPdf
+        );
+        email_enviado = true;
+      } catch (emailError) {
+        console.error('Error al enviar la factura por correo (el pago sí queda confirmado):', emailError);
       }
 
       await PedidoRepository.updateEstadoByReferencia(reference, {
@@ -196,18 +198,39 @@ class WompiController {
         );
       }
 
-      // Fallback: si aprobó y el frontend nunca alcanzó a mandar la factura
-      // (p. ej. el cliente cerró la pestaña), igual le confirmamos por correo.
+      // Fallback: si aprobó y el frontend nunca alcanzó a mandar la factura (p. ej.
+      // el cliente cerró la pestaña o el método de pago lo sacó de la página, como
+      // Nequi/PSE), igual le mandamos la factura completa, generada acá con lo que
+      // ya quedó guardado en BD.
       if (transaction.status === 'APPROVED' && !pedido.email_enviado) {
-        await EmailService.sendPaymentConfirmationEmail(
-          pedido.correo_cliente,
-          `${pedido.nombre_cliente} ${pedido.apellido_cliente}`
-        );
-        await PedidoRepository.updateEstadoByReferencia(transaction.reference, {
-          estado_pago: transaction.status,
-          wompi_transaction_id: transaction.id,
-          email_enviado: true
-        });
+        try {
+          const facturaPdf = await InvoiceService.buildInvoicePdfBase64(pedido);
+          await EmailService.sendInvoiceEmail(
+            pedido.correo_cliente,
+            `${pedido.nombre_cliente} ${pedido.apellido_cliente}`,
+            facturaPdf
+          );
+          await PedidoRepository.updateEstadoByReferencia(transaction.reference, {
+            estado_pago: transaction.status,
+            wompi_transaction_id: transaction.id,
+            email_enviado: true
+          });
+        } catch (emailError) {
+          console.error('Error al generar/enviar la factura desde el webhook, se intenta el correo simple de respaldo:', emailError);
+          try {
+            await EmailService.sendPaymentConfirmationEmail(
+              pedido.correo_cliente,
+              `${pedido.nombre_cliente} ${pedido.apellido_cliente}`
+            );
+            await PedidoRepository.updateEstadoByReferencia(transaction.reference, {
+              estado_pago: transaction.status,
+              wompi_transaction_id: transaction.id,
+              email_enviado: true
+            });
+          } catch (fallbackError) {
+            console.error('Error también en el correo de respaldo (el pago sí queda confirmado):', fallbackError);
+          }
+        }
       }
 
       res.status(200).json({ message: 'Evento procesado' });
