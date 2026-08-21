@@ -34,7 +34,7 @@ const fileFilter = (req, file, cb) => {
 };
 
 // Middleware de Express listo para usar en las rutas, ej: upload.single('imagen')
-const upload = multer({ storage, fileFilter, limits: { fileSize: 5 * 1024 * 1024 } });
+const upload = multer({ storage, fileFilter, limits: { fileSize: 10 * 1024 * 1024 } });
 
 class ImageStorageService {
   // Sube el buffer que dejó multer en req.file a Cloudinary.
