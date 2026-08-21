@@ -141,6 +141,24 @@ class WompiController {
     }
   }
 
+  // 2.6. El frontend llama esto para verificar el estado real de un pedido por su
+  //      referencia. Es la pieza clave para métodos de pago (Nequi, PSE, etc.) que
+  //      sacan al usuario de la página: al volver, en vez de confiar en un callback
+  //      que puede no llegar, la página pregunta acá cuál es el estado verdadero.
+  async consultarEstado(req, res) {
+    try {
+      const { reference } = req.params;
+      const pedido = await PedidoRepository.findByReferencia(reference);
+      if (!pedido) {
+        return res.status(404).json({ error: 'Pedido no encontrado para esa referencia' });
+      }
+      res.status(200).json({ estado_pago: pedido.estado_pago, email_enviado: !!pedido.email_enviado });
+    } catch (error) {
+      console.error('Error en consultarEstado:', error);
+      res.status(500).json({ error: 'Error al consultar el estado del pedido' });
+    }
+  }
+
   // 3. Webhook oficial de Wompi (evento "transaction.updated"). Es la fuente de
   //    verdad: automatiza la confirmación aunque el cliente cierre el navegador.
   async webhook(req, res) {

@@ -45,6 +45,52 @@ const Products = () => {
       .finally(() => setLoadingProducts(false));
   }, []);
 
+  // Al volver de un pago que sacó al cliente de la página (Nequi, PSE, etc.), Wompi
+  // redirige de vuelta acá con la referencia en la URL. En vez de confiar en un
+  // callback que en esos casos nunca llega, verificamos el estado real contra el backend.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('wompi_ref');
+    if (!ref) return;
+
+    window.history.replaceState({}, '', window.location.pathname);
+    setIsCartOpen(true);
+    setCheckoutStep('verificando');
+
+    let intentos = 0;
+    const verificar = async () => {
+      intentos += 1;
+      try {
+        const res = await fetch(`${API_URL}/api/wompi/estado/${ref}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.estado_pago === 'APPROVED') {
+            setCheckoutStep('success');
+            setCart([]);
+            return;
+          }
+          if (data.estado_pago && data.estado_pago !== 'PENDING') {
+            setDeclineStatus(data.estado_pago);
+            setCheckoutStep('declined');
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Error al verificar el pago tras el regreso de Wompi:', error);
+      }
+
+      if (intentos < 8) {
+        setTimeout(verificar, 3000);
+      } else {
+        setPaymentError('No pudimos confirmar tu pago automáticamente. Si Wompi te alcanzó a cobrar, escríbenos con tu referencia y lo confirmamos manualmente.');
+        setDeclineStatus('');
+        setCheckoutStep('declined');
+      }
+    };
+
+    verificar();
+  }, []);
+
   const addToCart = (product) => {
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
@@ -132,6 +178,9 @@ const Products = () => {
       reference,
       publicKey,
       signature: { integrity: signature },
+      // Métodos como Nequi o PSE sacan al cliente de la página; sin esto, Wompi lo
+      // devuelve a su propia pantalla genérica en vez de volver a nuestro sitio.
+      redirectUrl: `${window.location.origin}${window.location.pathname}?wompi_ref=${encodeURIComponent(reference)}`,
       customerData: {
         email: formData.email,
         fullName: `${formData.name} ${formData.lastName}`,
@@ -322,7 +371,7 @@ const Products = () => {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexShrink: 0 }}>
                 <h2 className="font-serif italic" style={{ fontSize: '2rem' }}>
-                  {checkoutStep === 'cart' ? 'Tu Carrito' : checkoutStep === 'info' ? 'Tus Datos' : checkoutStep === 'address' ? 'Dirección de Envío' : checkoutStep === 'payment' ? 'Pago' : checkoutStep === 'declined' ? 'Pago no completado' : '¡Gracias!'}
+                  {checkoutStep === 'cart' ? 'Tu Carrito' : checkoutStep === 'info' ? 'Tus Datos' : checkoutStep === 'address' ? 'Dirección de Envío' : checkoutStep === 'payment' ? 'Pago' : checkoutStep === 'verificando' ? 'Verificando Pago' : checkoutStep === 'declined' ? 'Pago no completado' : '¡Gracias!'}
                 </h2>
                 <button onClick={() => { setIsProcessing(false); setIsCartOpen(false); setTimeout(() => setCheckoutStep('cart'), 500); }}><X size={24} /></button>
               </div>
@@ -446,6 +495,14 @@ const Products = () => {
                 </form>
               )}
 
+              {checkoutStep === 'verificando' && (
+                <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 'calc(100% - 100px)' }}>
+                  <div style={{ width: '60px', height: '60px', borderRadius: '50%', border: '2px solid var(--border)', borderTopColor: 'white', marginBottom: '2rem', animation: 'spin 0.8s linear infinite' }} />
+                  <h3 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>Verificando tu pago...</h3>
+                  <p style={{ color: 'var(--text-muted)' }}>Esto solo toma unos segundos. No cierres esta ventana.</p>
+                </div>
+              )}
+
               {checkoutStep === 'declined' && (
                 <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 'calc(100% - 100px)' }}>
                   <div style={{ width: '60px', height: '60px', borderRadius: '50%', border: '2px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '2rem' }}>
@@ -480,6 +537,7 @@ const Products = () => {
       </AnimatePresence>
 
       <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
         .product-card:hover .product-image { transform: scale(1.05); }
         .product-card:hover .card-overlay { opacity: 1 !important; transform: translateY(-10px); }
 
