@@ -8,7 +8,11 @@ class EmailService {
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
-      }
+      },
+      // Fuerza IPv4: en algunos hosts (Railway incluido) la salida IPv6 no
+      // funciona aunque el DNS de smtp.gmail.com resuelva una IP v6, lo que
+      // rompe la conexión con ENETUNREACH.
+      family: 4
     });
   }
 

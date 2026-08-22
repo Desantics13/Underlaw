@@ -1,7 +1,14 @@
+const dns = require('dns');
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
+
+// Algunos hosts (Railway incluido) no tienen salida IPv6 funcional aunque el
+// DNS resuelva IPs v6 para dominios como smtp.gmail.com, lo que rompe
+// conexiones salientes con ENETUNREACH. Preferir IPv4 evita ese problema
+// para cualquier conexión saliente del servidor (correo, APIs externas, etc).
+dns.setDefaultResultOrder('ipv4first');
 
 const pedidoRoutes = require('./routes/pedidoRoutes');
 const wompiRoutes = require('./routes/wompiRoutes');
