@@ -76,35 +76,7 @@ class WompiController {
         return res.status(404).json({ error: 'Pedido no encontrado para esa referencia' });
       }
 
-      // El envío del correo se intenta aparte: si falla (Gmail caído, etc.) no debe
-      // impedir que el pago quede marcado como APROBADO — eso es lo que ya cobró Wompi.
-      // Si el navegador no alcanzó a mandar su PDF, lo generamos acá con lo que ya
-      // quedó guardado en BD, para que la factura llegue siempre.
-      let email_enviado = false;
-      try {
-        const facturaPdf = pdfBase64 || await InvoiceService.buildInvoicePdfBase64(pedido);
-        await EmailService.sendInvoiceEmail(
-          pedido.correo_cliente,
-          `${pedido.nombre_cliente} ${pedido.apellido_cliente}`,
-          facturaPdf
-        );
-        email_enviado = true;
-      } catch (emailError) {
-        console.error('Error al enviar la factura por correo (el pago sí queda confirmado):', emailError);
-      }
-
-      await PedidoRepository.updateEstadoByReferencia(reference, {
-        estado_pago: 'APPROVED',
-        email_enviado
-      });
-
-      // Notifica al Admin solo la primera vez que este pedido queda aprobado
-      // (evita duplicados si el webhook de Wompi también llega a confirmarlo).
-      if (pedido.estado_pago !== 'APPROVED') {
-        await NotificacionRepository.create(
-          `Nueva compra de ${pedido.nombre_cliente} ${pedido.apellido_cliente} — ${pedido.nombre_producto}`
-        );
-      }
+      await this._reconciliarPedido(pedido, 'APPROVED', null, pdfBase64);
 
       res.status(200).json({ message: 'Pedido confirmado', pedidoId: pedido.id });
     } catch (error) {
@@ -132,9 +104,7 @@ class WompiController {
         return res.status(200).json({ message: 'El pedido ya estaba aprobado, no se modifica' });
       }
 
-      await PedidoRepository.updateEstadoByReferencia(reference, {
-        estado_pago: estado_pago || 'VOIDED'
-      });
+      await this._reconciliarPedido(pedido, estado_pago || 'VOIDED', null, null);
 
       res.status(200).json({ message: 'Pedido marcado como cancelado' });
     } catch (error) {
@@ -145,15 +115,32 @@ class WompiController {
 
   // 2.6. El frontend llama esto para verificar el estado real de un pedido por su
   //      referencia. Es la pieza clave para métodos de pago (Nequi, PSE, etc.) que
-  //      sacan al usuario de la página: al volver, en vez de confiar en un callback
-  //      que puede no llegar, la página pregunta acá cuál es el estado verdadero.
+  //      sacan al usuario de la página: al volver, en vez de esperar a que llegue
+  //      el webhook (que puede tardar), si todavía figura PENDING acá y llega un
+  //      transactionId (Wompi lo agrega solo al redirectUrl), se consulta el
+  //      estado directo en la API de Wompi para responder al instante.
   async consultarEstado(req, res) {
     try {
       const { reference } = req.params;
-      const pedido = await PedidoRepository.findByReferencia(reference);
+      const { transactionId } = req.query;
+
+      let pedido = await PedidoRepository.findByReferencia(reference);
       if (!pedido) {
         return res.status(404).json({ error: 'Pedido no encontrado para esa referencia' });
       }
+
+      if (pedido.estado_pago === 'PENDING' && transactionId) {
+        try {
+          const transaccion = await WompiService.consultarTransaccion(transactionId);
+          if (transaccion && transaccion.status && transaccion.status !== 'PENDING') {
+            await this._reconciliarPedido(pedido, transaccion.status, transaccion.id, null);
+            pedido = await PedidoRepository.findByReferencia(reference);
+          }
+        } catch (wompiError) {
+          console.error('Error al consultar la transacción directo en Wompi:', wompiError);
+        }
+      }
+
       res.status(200).json({ estado_pago: pedido.estado_pago, email_enviado: !!pedido.email_enviado });
     } catch (error) {
       console.error('Error en consultarEstado:', error);
@@ -183,60 +170,71 @@ class WompiController {
         return res.status(200).json({ message: 'Referencia no encontrada, ignorado' });
       }
 
-      const yaEstabaAprobado = pedido.estado_pago === 'APPROVED';
-
-      await PedidoRepository.updateEstadoByReferencia(transaction.reference, {
-        estado_pago: transaction.status,
-        wompi_transaction_id: transaction.id
-      });
-
-      // Notifica al Admin solo la primera vez que este pedido queda aprobado
-      // (si el frontend ya lo había confirmado antes, no se duplica el aviso).
-      if (transaction.status === 'APPROVED' && !yaEstabaAprobado) {
-        await NotificacionRepository.create(
-          `Nueva compra de ${pedido.nombre_cliente} ${pedido.apellido_cliente} — ${pedido.nombre_producto}`
-        );
-      }
-
-      // Fallback: si aprobó y el frontend nunca alcanzó a mandar la factura (p. ej.
-      // el cliente cerró la pestaña o el método de pago lo sacó de la página, como
-      // Nequi/PSE), igual le mandamos la factura completa, generada acá con lo que
-      // ya quedó guardado en BD.
-      if (transaction.status === 'APPROVED' && !pedido.email_enviado) {
-        try {
-          const facturaPdf = await InvoiceService.buildInvoicePdfBase64(pedido);
-          await EmailService.sendInvoiceEmail(
-            pedido.correo_cliente,
-            `${pedido.nombre_cliente} ${pedido.apellido_cliente}`,
-            facturaPdf
-          );
-          await PedidoRepository.updateEstadoByReferencia(transaction.reference, {
-            estado_pago: transaction.status,
-            wompi_transaction_id: transaction.id,
-            email_enviado: true
-          });
-        } catch (emailError) {
-          console.error('Error al generar/enviar la factura desde el webhook, se intenta el correo simple de respaldo:', emailError);
-          try {
-            await EmailService.sendPaymentConfirmationEmail(
-              pedido.correo_cliente,
-              `${pedido.nombre_cliente} ${pedido.apellido_cliente}`
-            );
-            await PedidoRepository.updateEstadoByReferencia(transaction.reference, {
-              estado_pago: transaction.status,
-              wompi_transaction_id: transaction.id,
-              email_enviado: true
-            });
-          } catch (fallbackError) {
-            console.error('Error también en el correo de respaldo (el pago sí queda confirmado):', fallbackError);
-          }
-        }
-      }
+      await this._reconciliarPedido(pedido, transaction.status, transaction.id, null);
 
       res.status(200).json({ message: 'Evento procesado' });
     } catch (error) {
       console.error('Error en webhook de Wompi:', error);
       res.status(500).json({ error: 'Error interno procesando el webhook' });
+    }
+  }
+
+  // ── Lógica compartida ──────────────────────────────────────────────────
+  // La usan los tres caminos por los que nos podemos enterar de un pago (el
+  // callback del Widget vía confirmarPago, la consulta directa a Wompi al
+  // volver de un pago que sacó al cliente de la página, y el webhook oficial)
+  // para no duplicar la lógica de notificar al Admin y mandar la factura.
+  async _reconciliarPedido(pedido, nuevoEstado, wompiTransactionId, pdfBase64FrontEnd) {
+    const yaEstabaAprobado = pedido.estado_pago === 'APPROVED';
+
+    await PedidoRepository.updateEstadoByReferencia(pedido.referencia_pago, {
+      estado_pago: nuevoEstado,
+      wompi_transaction_id: wompiTransactionId
+    });
+
+    // Notifica al Admin solo la primera vez que este pedido queda aprobado
+    // (evita duplicados si más de un camino llega a confirmarlo).
+    if (nuevoEstado === 'APPROVED' && !yaEstabaAprobado) {
+      await NotificacionRepository.create(
+        `Nueva compra de ${pedido.nombre_cliente} ${pedido.apellido_cliente} — ${pedido.nombre_producto}`
+      );
+    }
+
+    if (nuevoEstado === 'APPROVED' && !pedido.email_enviado) {
+      await this._enviarFactura(pedido, pdfBase64FrontEnd);
+    }
+  }
+
+  // El envío del correo se intenta aparte: si falla no debe impedir que el pago
+  // quede marcado como APROBADO — eso es lo que ya cobró Wompi. Si no hay un
+  // PDF generado por el navegador, se genera uno en el servidor con los datos
+  // ya guardados en BD. Si hasta eso falla, se manda al menos un aviso simple.
+  async _enviarFactura(pedido, pdfBase64FrontEnd) {
+    try {
+      const facturaPdf = pdfBase64FrontEnd || await InvoiceService.buildInvoicePdfBase64(pedido);
+      await EmailService.sendInvoiceEmail(
+        pedido.correo_cliente,
+        `${pedido.nombre_cliente} ${pedido.apellido_cliente}`,
+        facturaPdf
+      );
+      await PedidoRepository.updateEstadoByReferencia(pedido.referencia_pago, {
+        estado_pago: 'APPROVED',
+        email_enviado: true
+      });
+    } catch (emailError) {
+      console.error('Error al generar/enviar la factura, se intenta el correo simple de respaldo:', emailError);
+      try {
+        await EmailService.sendPaymentConfirmationEmail(
+          pedido.correo_cliente,
+          `${pedido.nombre_cliente} ${pedido.apellido_cliente}`
+        );
+        await PedidoRepository.updateEstadoByReferencia(pedido.referencia_pago, {
+          estado_pago: 'APPROVED',
+          email_enviado: true
+        });
+      } catch (fallbackError) {
+        console.error('Error también en el correo de respaldo (el pago sí queda confirmado):', fallbackError);
+      }
     }
   }
 }

@@ -28,6 +28,21 @@ class WompiService {
   buildReference(pedidoId) {
     return `UL-${pedidoId}-${Date.now()}`;
   }
+
+  // Consulta el estado real de una transacción directo en la API de Wompi.
+  // Se usa cuando el cliente vuelve de un pago que lo sacó de la página
+  // (Nequi, PSE) para saber el resultado al instante, sin esperar a que
+  // llegue el webhook asíncrono. Es un endpoint público de Wompi (no
+  // requiere autenticación, el id de transacción ya es suficientemente
+  // difícil de adivinar).
+  async consultarTransaccion(transactionId) {
+    const res = await fetch(`${wompiConfig.apiBaseUrl}/transactions/${transactionId}`);
+    if (!res.ok) {
+      throw new Error(`Wompi respondió ${res.status} al consultar la transacción`);
+    }
+    const body = await res.json();
+    return body.data; // { id, status, reference, ... }
+  }
 }
 
 module.exports = new WompiService();

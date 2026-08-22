@@ -46,13 +46,15 @@ const Products = () => {
   }, []);
 
   // Al volver de un pago que sacó al cliente de la página (Nequi, PSE, etc.), Wompi
-  // redirige de vuelta acá con la referencia en la URL. En vez de confiar en un
-  // callback que en esos casos nunca llega, verificamos el estado real contra el backend.
+  // redirige de vuelta acá con la referencia y su propio ID de transacción en la URL.
+  // En vez de confiar en un callback que en esos casos nunca llega, le pasamos ese ID
+  // al backend para que consulte el estado real directo en Wompi y no haya que esperar.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const ref = params.get('wompi_ref');
     if (!ref) return;
 
+    const transactionId = params.get('id');
     window.history.replaceState({}, '', window.location.pathname);
     setIsCartOpen(true);
     setCheckoutStep('verificando');
@@ -61,7 +63,8 @@ const Products = () => {
     const verificar = async () => {
       intentos += 1;
       try {
-        const res = await fetch(`${API_URL}/api/wompi/estado/${ref}`);
+        const query = transactionId ? `?transactionId=${encodeURIComponent(transactionId)}` : '';
+        const res = await fetch(`${API_URL}/api/wompi/estado/${ref}${query}`);
         if (res.ok) {
           const data = await res.json();
           if (data.estado_pago === 'APPROVED') {
@@ -80,7 +83,7 @@ const Products = () => {
       }
 
       if (intentos < 8) {
-        setTimeout(verificar, 3000);
+        setTimeout(verificar, 2000);
       } else {
         setPaymentError('No pudimos confirmar tu pago automáticamente. Si Wompi te alcanzó a cobrar, escríbenos con tu referencia y lo confirmamos manualmente.');
         setDeclineStatus('');

@@ -1,61 +1,28 @@
-const nodemailer = require('nodemailer');
-const dns = require('dns');
+const { Resend } = require('resend');
 require('dotenv').config();
 
-const GMAIL_SMTP_HOST = 'smtp.gmail.com';
-const GMAIL_SMTP_PORT = 465;
+// ─────────────────────────────────────────────────────────────────────────
+// ENVÍO DE CORREOS — Resend (HTTPS), no Gmail SMTP
+//
+// El envío original usaba Gmail por SMTP directo, pero Railway (y la mayoría
+// de plataformas cloud) bloquea las conexiones salientes por el puerto 465 a
+// nivel de red para prevenir spam — el pago se confirmaba bien pero el
+// correo nunca salía (se quedaba colgado hasta hacer timeout). Resend envía
+// los correos vía una API HTTPS normal (puerto 443), que nunca está
+// bloqueado, así que evita el problema de raíz.
+// ─────────────────────────────────────────────────────────────────────────
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+const FROM_EMAIL = process.env.EMAIL_FROM || 'Under Law <onboarding@resend.dev>';
 
 class EmailService {
-  constructor() {
-    // La creación del transporter necesita resolver una IP primero (ver abajo),
-    // así que queda como una promesa que cada envío espera antes de usarla.
-    this.transporterPromise = this._buildTransporter();
-  }
-
-  // Resuelve smtp.gmail.com a una IP v4 explícita y se conecta directo a esa IP.
-  // Algunos hosts (Railway incluido) no tienen salida IPv6 funcional aunque el
-  // DNS resuelva una IP v6 para ese dominio — eso rompía la conexión con
-  // ENETUNREACH. Al conectar por una IP v4 ya resuelta no queda ninguna
-  // ambigüedad de qué familia usar. "tls.servername" queda igual al hostname
-  // real para que la validación del certificado TLS siga funcionando.
-  async _buildTransporter() {
-    let host = GMAIL_SMTP_HOST;
-    try {
-      // dns.lookup() usa el resolver del sistema operativo (getaddrinfo), más
-      // confiable en distintos entornos/redes que dns.resolve4() (que hace una
-      // consulta DNS directa y puede fallar si esa vía está restringida).
-      const { address } = await dns.promises.lookup(GMAIL_SMTP_HOST, { family: 4 });
-      if (address) host = address;
-    } catch (error) {
-      console.warn('No se pudo resolver IPv4 de smtp.gmail.com, se usará el hostname directamente:', error.message);
-    }
-
-    return nodemailer.createTransport({
-      host,
-      port: GMAIL_SMTP_PORT,
-      secure: true,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      },
-      tls: {
-        servername: GMAIL_SMTP_HOST
-      }
-    });
-  }
-
   async sendInvoiceEmail(toEmail, clientName, pdfBase64) {
     try {
-      const transporter = await this.transporterPromise;
-
       // Eliminar el prefijo del Data URI si viene incluido
       const base64Clean = pdfBase64.replace(/^data:application\/pdf;base64,/, '');
 
-      // Convertir a Buffer: es la forma más confiable para adjuntar archivos con Nodemailer
-      const pdfBuffer = Buffer.from(base64Clean, 'base64');
-
-      const mailOptions = {
-        from: `"Under Law" <${process.env.EMAIL_USER}>`,
+      const { data, error } = await resend.emails.send({
+        from: FROM_EMAIL,
         to: toEmail,
         subject: 'Comprobante de Pago - Under Law',
         html: `
@@ -71,14 +38,13 @@ class EmailService {
         attachments: [
           {
             filename: 'factura-underlaw.pdf',
-            content: pdfBuffer,           // Buffer en lugar de string base64
-            contentType: 'application/pdf'
+            content: base64Clean
           }
         ]
-      };
+      });
 
-      const info = await transporter.sendMail(mailOptions);
-      console.log('Correo enviado exitosamente: ' + info.messageId);
+      if (error) throw new Error(error.message || 'Resend devolvió un error al enviar el correo');
+      console.log('Correo enviado exitosamente: ' + data?.id);
       return true;
     } catch (error) {
       console.error('Error al enviar el correo:', error);
@@ -86,14 +52,11 @@ class EmailService {
     }
   }
 
-  // Fallback sin PDF adjunto, usado por el webhook de Wompi cuando el cliente
-  // ya cerró el navegador antes de que el frontend pudiera generar la factura.
+  // Fallback sin PDF adjunto, usado cuando la generación/envío de la factura falla.
   async sendPaymentConfirmationEmail(toEmail, clientName) {
     try {
-      const transporter = await this.transporterPromise;
-
-      const mailOptions = {
-        from: `"Under Law" <${process.env.EMAIL_USER}>`,
+      const { data, error } = await resend.emails.send({
+        from: FROM_EMAIL,
         to: toEmail,
         subject: 'Pago Confirmado - Under Law',
         html: `
@@ -103,10 +66,10 @@ class EmailService {
             <p style="font-size: 0.85em; color: #888; margin-top: 20px; border-top: 1px solid #eee; padding-top: 12px;">© 2026 UNDER LAW — Todos los derechos reservados.</p>
           </div>
         `
-      };
+      });
 
-      const info = await transporter.sendMail(mailOptions);
-      console.log('Correo de confirmación enviado: ' + info.messageId);
+      if (error) throw new Error(error.message || 'Resend devolvió un error al enviar el correo');
+      console.log('Correo de confirmación enviado: ' + data?.id);
       return true;
     } catch (error) {
       console.error('Error al enviar el correo de confirmación:', error);

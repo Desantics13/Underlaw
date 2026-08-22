@@ -96,7 +96,7 @@ class PedidoRepository {
   async updateEstadoByReferencia(referencia_pago, { estado_pago, wompi_transaction_id, email_enviado }) {
     try {
       await db.execute(
-        'UPDATE producto SET estado_pago = ?, wompi_transaction_id = ?, email_enviado = COALESCE(?, email_enviado) WHERE referencia_pago = ?',
+        'UPDATE producto SET estado_pago = ?, wompi_transaction_id = COALESCE(?, wompi_transaction_id), email_enviado = COALESCE(?, email_enviado) WHERE referencia_pago = ?',
         [estado_pago, wompi_transaction_id || null, typeof email_enviado === 'boolean' ? (email_enviado ? 1 : 0) : null, referencia_pago]
       );
     } catch (error) {
