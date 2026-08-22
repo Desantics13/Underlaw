@@ -1,26 +1,56 @@
 const nodemailer = require('nodemailer');
+const dns = require('dns');
 require('dotenv').config();
+
+const GMAIL_SMTP_HOST = 'smtp.gmail.com';
+const GMAIL_SMTP_PORT = 465;
 
 class EmailService {
   constructor() {
-    this.transporter = nodemailer.createTransport({
-      service: 'gmail',
+    // La creación del transporter necesita resolver una IP primero (ver abajo),
+    // así que queda como una promesa que cada envío espera antes de usarla.
+    this.transporterPromise = this._buildTransporter();
+  }
+
+  // Resuelve smtp.gmail.com a una IP v4 explícita y se conecta directo a esa IP.
+  // Algunos hosts (Railway incluido) no tienen salida IPv6 funcional aunque el
+  // DNS resuelva una IP v6 para ese dominio — eso rompía la conexión con
+  // ENETUNREACH. Al conectar por una IP v4 ya resuelta no queda ninguna
+  // ambigüedad de qué familia usar. "tls.servername" queda igual al hostname
+  // real para que la validación del certificado TLS siga funcionando.
+  async _buildTransporter() {
+    let host = GMAIL_SMTP_HOST;
+    try {
+      // dns.lookup() usa el resolver del sistema operativo (getaddrinfo), más
+      // confiable en distintos entornos/redes que dns.resolve4() (que hace una
+      // consulta DNS directa y puede fallar si esa vía está restringida).
+      const { address } = await dns.promises.lookup(GMAIL_SMTP_HOST, { family: 4 });
+      if (address) host = address;
+    } catch (error) {
+      console.warn('No se pudo resolver IPv4 de smtp.gmail.com, se usará el hostname directamente:', error.message);
+    }
+
+    return nodemailer.createTransport({
+      host,
+      port: GMAIL_SMTP_PORT,
+      secure: true,
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
       },
-      // Fuerza IPv4: en algunos hosts (Railway incluido) la salida IPv6 no
-      // funciona aunque el DNS de smtp.gmail.com resuelva una IP v6, lo que
-      // rompe la conexión con ENETUNREACH.
-      family: 4
+      tls: {
+        servername: GMAIL_SMTP_HOST
+      }
     });
   }
 
   async sendInvoiceEmail(toEmail, clientName, pdfBase64) {
     try {
+      const transporter = await this.transporterPromise;
+
       // Eliminar el prefijo del Data URI si viene incluido
       const base64Clean = pdfBase64.replace(/^data:application\/pdf;base64,/, '');
-      
+
       // Convertir a Buffer: es la forma más confiable para adjuntar archivos con Nodemailer
       const pdfBuffer = Buffer.from(base64Clean, 'base64');
 
@@ -47,7 +77,7 @@ class EmailService {
         ]
       };
 
-      const info = await this.transporter.sendMail(mailOptions);
+      const info = await transporter.sendMail(mailOptions);
       console.log('Correo enviado exitosamente: ' + info.messageId);
       return true;
     } catch (error) {
@@ -60,6 +90,8 @@ class EmailService {
   // ya cerró el navegador antes de que el frontend pudiera generar la factura.
   async sendPaymentConfirmationEmail(toEmail, clientName) {
     try {
+      const transporter = await this.transporterPromise;
+
       const mailOptions = {
         from: `"Under Law" <${process.env.EMAIL_USER}>`,
         to: toEmail,
@@ -73,7 +105,7 @@ class EmailService {
         `
       };
 
-      const info = await this.transporter.sendMail(mailOptions);
+      const info = await transporter.sendMail(mailOptions);
       console.log('Correo de confirmación enviado: ' + info.messageId);
       return true;
     } catch (error) {
