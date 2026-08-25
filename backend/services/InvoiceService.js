@@ -39,8 +39,10 @@ class InvoiceService {
         doc.moveDown(0.3);
         doc.fontSize(11);
         const items = String(pedido.nombre_producto || '').split(',').map(i => i.trim()).filter(Boolean);
-        (items.length ? items : [pedido.nombre_producto]).forEach(item => {
-          doc.text(`• ${item}`);
+        const tallas = String(pedido.talla || '').split(',').map(t => t.trim()).filter(Boolean);
+        (items.length ? items : [pedido.nombre_producto]).forEach((item, index) => {
+          const talla = tallas[index] && tallas[index] !== 'N/A' ? ` (Talla: ${tallas[index]})` : '';
+          doc.text(`• ${item}${talla}`);
         });
 
         doc.moveDown(1);

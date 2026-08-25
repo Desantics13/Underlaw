@@ -71,6 +71,7 @@ const Admin = () => {
           telefono_cliente: p.telefono_cliente,
           cliente: `${p.nombre_cliente} ${p.apellido_cliente}`,
           producto: p.nombre_producto,
+          talla: p.talla || '',
           precio: p.precio_producto,
           metodo_pago: p.metodo_pago || 'No especificado',
           fecha: new Date(p.fecha_compra).toISOString().split('T')[0],
@@ -267,39 +268,41 @@ const Admin = () => {
 
         {/* Tabla de Pedidos */}
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }} style={{ background: '#1e293b', padding: '2rem', borderRadius: '12px', border: '1px solid #334155' }}>
-          <h3 style={{ fontSize: '1.25rem', color: '#fff', marginBottom: '2rem' }}>Últimos Pedidos</h3>
+          <h3 style={{ fontSize: '1.25rem', color: '#fff', marginBottom: '2rem' }}>Historial de Pedidos</h3>
 
           <div className="admin-table-wrapper">
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8', fontSize: '0.85rem' }}>
-                <th style={{ paddingBottom: '1rem', fontWeight: '500' }}>Cliente</th>
-                <th style={{ paddingBottom: '1rem', fontWeight: '500' }}>Producto</th>
-                <th style={{ paddingBottom: '1rem', fontWeight: '500' }}>Precio</th>
-                <th style={{ paddingBottom: '1rem', fontWeight: '500' }}>Fecha</th>
-                <th style={{ paddingBottom: '1rem', fontWeight: '500' }}>Estado</th>
-                <th style={{ paddingBottom: '1rem', fontWeight: '500' }}>Dirección</th>
+                <th style={{ paddingBottom: '1rem', paddingRight: '1rem', fontWeight: '500' }}>Cliente</th>
+                <th style={{ paddingBottom: '1rem', paddingRight: '1rem', fontWeight: '500' }}>Producto</th>
+                <th style={{ paddingBottom: '1rem', paddingRight: '1rem', fontWeight: '500' }}>Talla</th>
+                <th style={{ paddingBottom: '1rem', paddingRight: '1rem', fontWeight: '500' }}>Precio</th>
+                <th style={{ paddingBottom: '1rem', paddingRight: '1rem', fontWeight: '500' }}>Fecha</th>
+                <th style={{ paddingBottom: '1rem', paddingRight: '1rem', fontWeight: '500' }}>Estado</th>
+                <th style={{ paddingBottom: '1rem', paddingRight: '1rem', fontWeight: '500' }}>Dirección</th>
                 <th style={{ paddingBottom: '1rem', fontWeight: '500' }}>Datos</th>
               </tr>
             </thead>
             <tbody>
               {pedidosPagina.map((pedido, index) => (
                 <tr key={index} style={{ borderBottom: '1px solid rgba(51,65,85,0.5)' }}>
-                  <td style={{ padding: '1.25rem 0', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <td style={{ padding: '1.25rem 1rem 1.25rem 0', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <div style={{ width: '35px', height: '35px', borderRadius: '50%', background: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <User size={16} />
                     </div>
                     {pedido.cliente}
                   </td>
-                  <td style={{ padding: '1.25rem 0' }}>{pedido.producto}</td>
-                  <td style={{ padding: '1.25rem 0' }}>${Number(pedido.precio).toLocaleString('es-CO')}</td>
-                  <td style={{ padding: '1.25rem 0' }}>{pedido.fecha}</td>
-                  <td style={{ padding: '1.25rem 0' }}>
+                  <td style={{ padding: '1.25rem 1rem 1.25rem 0' }}>{pedido.producto}</td>
+                  <td style={{ padding: '1.25rem 1rem 1.25rem 0' }}>{pedido.talla || '—'}</td>
+                  <td style={{ padding: '1.25rem 1rem 1.25rem 0' }}>${Number(pedido.precio).toLocaleString('es-CO')}</td>
+                  <td style={{ padding: '1.25rem 1rem 1.25rem 0' }}>{pedido.fecha}</td>
+                  <td style={{ padding: '1.25rem 1rem 1.25rem 0' }}>
                     <span style={{ padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.8rem', background: (ESTADO_COLORS[pedido.estado] || ESTADO_COLORS.Pendiente).bg, color: (ESTADO_COLORS[pedido.estado] || ESTADO_COLORS.Pendiente).color }}>
                       {pedido.estado}
                     </span>
                   </td>
-                  <td style={{ padding: '1.25rem 0' }}>
+                  <td style={{ padding: '1.25rem 1rem 1.25rem 0' }}>
                     <button
                       onClick={() => setSelectedDireccion(pedido)}
                       style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#3b82f6', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: '500', fontSize: '0.85rem' }}
@@ -318,7 +321,7 @@ const Admin = () => {
                 </tr>
               ))}
               {pedidos.length === 0 && (
-                <tr><td colSpan="7" style={{ textAlign: 'center', padding: '3rem 0', color: '#64748b' }}>No hay pedidos registrados aún.</td></tr>
+                <tr><td colSpan="8" style={{ textAlign: 'center', padding: '3rem 0', color: '#64748b' }}>No hay pedidos registrados aún.</td></tr>
               )}
             </tbody>
           </table>
@@ -380,6 +383,7 @@ const Admin = () => {
                   { label: 'Correo electrónico', value: selectedPedido.correo_cliente },
                   { label: 'Teléfono', value: selectedPedido.telefono_cliente },
                   { label: 'Producto(s)', value: selectedPedido.producto },
+                  { label: 'Talla(s)', value: selectedPedido.talla || '—' },
                   { label: 'Total pagado', value: `$${Number(selectedPedido.precio).toLocaleString('es-CO')} COP` },
                   { label: 'Método de pago', value: selectedPedido.metodo_pago },
                   { label: 'Fecha de compra', value: selectedPedido.fecha },

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingCart, X, Plus, Minus } from 'lucide-react';
 import { jsPDF } from "jspdf";
+import ProductImageCarousel from '../components/ProductImageCarousel';
+import QuickViewModal from '../components/QuickViewModal';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const WOMPI_WIDGET_SCRIPT_ID = 'wompi-widget-script';
@@ -11,6 +13,7 @@ const Products = () => {
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [quickViewProduct, setQuickViewProduct] = useState(null);
   const [checkoutStep, setCheckoutStep] = useState('cart'); // cart, info, address, payment, declined, success
   const [formData, setFormData] = useState({ name: '', lastName: '', phone: '', email: '', doc: '', pais: '', municipio: '', ciudad: '', direccion: '' });
   const [isProcessing, setIsProcessing] = useState(false);
@@ -37,6 +40,7 @@ const Products = () => {
           lanzamiento: p.nombre_lanzamiento,
           price: Number(p.precio),
           image: p.imagen || null,
+          images: Array.isArray(p.imagenes) && p.imagenes.length > 0 ? p.imagenes : (p.imagen ? [p.imagen] : []),
           estado: p.estado
         }));
         setProductsList(formatted);
@@ -94,13 +98,17 @@ const Products = () => {
     verificar();
   }, []);
 
-  const addToCart = (product) => {
+  // talla es opcional: se usa para diferenciar líneas del carrito del mismo
+  // producto en tallas distintas (cada combinación producto+talla es su propia
+  // línea; misma talla del mismo producto acumula cantidad).
+  const addToCart = (product, quantity = 1, talla = null) => {
+    const lineId = talla ? `${product.id}-${talla}` : String(product.id);
     setCart(prev => {
-      const existing = prev.find(item => item.id === product.id);
+      const existing = prev.find(item => item.id === lineId);
       if (existing) {
-        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
+        return prev.map(item => item.id === lineId ? { ...item, quantity: item.quantity + quantity } : item);
       }
-      return [...prev, { ...product, quantity: 1 }];
+      return [...prev, { ...product, id: lineId, productId: product.id, talla, quantity }];
     });
     setIsCartOpen(true);
   };
@@ -139,7 +147,8 @@ const Products = () => {
     cart.forEach(item => {
       const sub = item.price * item.quantity;
       total += sub;
-      doc.text(`${item.quantity}x ${item.name} - $${sub.toLocaleString('es-CO')} COP`, 20, y);
+      const tallaTxt = item.talla ? ` (Talla: ${item.talla})` : '';
+      doc.text(`${item.quantity}x ${item.name}${tallaTxt} - $${sub.toLocaleString('es-CO')} COP`, 20, y);
       y += 10;
     });
 
@@ -327,15 +336,24 @@ const Products = () => {
               className="product-card"
             >
               <div className="premium-card" style={{ position: 'relative', marginBottom: '1.5rem', aspectRatio: '3/4', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0c0c0c', overflow: 'hidden' }}>
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.6s ease', opacity: disponible ? 1 : 0.4 }}
-                  className="product-image"
-                />
+                {product.images.length > 0 ? (
+                  <ProductImageCarousel
+                    images={product.images}
+                    alt={product.name}
+                    imgClassName="product-image"
+                    imgStyle={{ transition: 'transform 0.6s ease', opacity: disponible ? 1 : 0.4 }}
+                  />
+                ) : (
+                  <img
+                    src={product.image}
+                    alt={product.name}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.6s ease', opacity: disponible ? 1 : 0.4 }}
+                    className="product-image"
+                  />
+                )}
                 {disponible ? (
                   <div className="card-overlay" style={{ position: 'absolute', bottom: '1.5rem', left: '1.5rem', right: '1.5rem', opacity: 0, transition: 'var(--transition)' }}>
-                    <button onClick={() => addToCart(product)} className="premium-button" style={{ width: '100%', padding: '1rem' }}>Añadir al Carrito</button>
+                    <button onClick={() => setQuickViewProduct(product)} className="premium-button" style={{ width: '100%', padding: '1rem' }}>Ver producto</button>
                   </div>
                 ) : (
                   <div style={{ position: 'absolute', top: '1rem', left: '1rem', background: 'rgba(0,0,0,0.85)', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '0.4rem 0.8rem' }}>
@@ -536,6 +554,18 @@ const Products = () => {
               )}
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* Quick View Modal */}
+      <AnimatePresence>
+        {quickViewProduct && (
+          <QuickViewModal
+            key={quickViewProduct.id}
+            product={quickViewProduct}
+            onClose={() => setQuickViewProduct(null)}
+            onAddToCart={addToCart}
+          />
         )}
       </AnimatePresence>
 

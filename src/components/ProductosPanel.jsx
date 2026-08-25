@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Pencil, PauseCircle, PlayCircle, Trash2, X, ImagePlus, Package } from 'lucide-react';
+import ProductImageCarousel from './ProductImageCarousel';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -29,8 +30,10 @@ const ProductosPanel = () => {
   const [nombreLanzamiento, setNombreLanzamiento] = useState('');
   const [nombreProducto, setNombreProducto] = useState('');
   const [precio, setPrecio] = useState('');
-  const [imagenFile, setImagenFile] = useState(null);
-  const [imagenPreview, setImagenPreview] = useState(null);
+  // Galería en edición dentro del formulario: lista ordenada de { key, kind: 'existing'|'new', url, file? }.
+  // "existing" son imágenes que el producto ya tenía (se conservan salvo que se quiten con la X);
+  // "new" son archivos recién seleccionados (se suben al guardar). Ambas se pueden quitar individualmente.
+  const [imagenes, setImagenes] = useState([]);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -55,8 +58,7 @@ const ProductosPanel = () => {
     setNombreLanzamiento(sugerirNombreLanzamiento(productos));
     setNombreProducto('');
     setPrecio('');
-    setImagenFile(null);
-    setImagenPreview(null);
+    setImagenes([]);
     setFormError('');
     setShowForm(true);
   };
@@ -66,8 +68,8 @@ const ProductosPanel = () => {
     setNombreLanzamiento(producto.nombre_lanzamiento);
     setNombreProducto(producto.nombre_producto);
     setPrecio(String(producto.precio));
-    setImagenFile(null);
-    setImagenPreview(producto.imagen || null);
+    const existentes = producto.imagenes && producto.imagenes.length > 0 ? producto.imagenes : (producto.imagen ? [producto.imagen] : []);
+    setImagenes(existentes.map((url) => ({ key: url, kind: 'existing', url })));
     setFormError('');
     setShowForm(true);
   };
@@ -78,10 +80,25 @@ const ProductosPanel = () => {
   };
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setImagenFile(file);
-    setImagenPreview(URL.createObjectURL(file));
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    const nuevas = files.map((file) => ({
+      key: `new-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      kind: 'new',
+      url: URL.createObjectURL(file),
+      file
+    }));
+    setImagenes((prev) => [...prev, ...nuevas].slice(0, 8));
+    e.target.value = '';
+  };
+
+  const quitarImagen = (key) => {
+    setImagenes((prev) => {
+      if (prev.length <= 1) return prev;
+      const objetivo = prev.find((img) => img.key === key);
+      if (objetivo && objetivo.kind === 'new') URL.revokeObjectURL(objetivo.url);
+      return prev.filter((img) => img.key !== key);
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -100,8 +117,8 @@ const ProductosPanel = () => {
       setFormError('El precio debe ser un número mayor a 0.');
       return;
     }
-    if (!editingProducto && !imagenFile) {
-      setFormError('Selecciona una imagen para el producto.');
+    if (imagenes.length === 0) {
+      setFormError('Selecciona al menos una imagen para el producto.');
       return;
     }
 
@@ -109,7 +126,11 @@ const ProductosPanel = () => {
     body.append('nombre_lanzamiento', nombreLanzamiento.trim());
     body.append('nombre_producto', nombreProducto.trim());
     body.append('precio', precio);
-    if (imagenFile) body.append('imagen', imagenFile);
+    if (editingProducto) {
+      const aConservar = imagenes.filter((img) => img.kind === 'existing').map((img) => img.url);
+      body.append('imagenes_conservar', JSON.stringify(aConservar));
+    }
+    imagenes.filter((img) => img.kind === 'new').forEach((img) => body.append('imagenes', img.file));
 
     setSaving(true);
     try {
@@ -196,8 +217,8 @@ const ProductosPanel = () => {
             return (
               <div key={producto.id} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ aspectRatio: '3/4', background: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                  {producto.imagen ? (
-                    <img src={producto.imagen} alt={producto.nombre_producto} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  {producto.imagenes && producto.imagenes.length > 0 ? (
+                    <ProductImageCarousel images={producto.imagenes} alt={producto.nombre_producto} />
                   ) : (
                     <Package size={32} color="#475569" />
                   )}
@@ -291,26 +312,40 @@ const ProductosPanel = () => {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>Imagen (JPG o PNG)</label>
+                  <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>Imágenes (JPG o PNG, puedes elegir varias)</label>
                   <input
                     ref={fileInputRef}
                     type="file"
                     accept="image/jpeg,image/jpg,image/png"
+                    multiple
                     onChange={handleFileChange}
                     style={{ display: 'none' }}
                   />
-                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                    {imagenPreview && (
-                      <img src={imagenPreview} alt="Vista previa" style={{ width: '60px', height: '75px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #334155' }} />
-                    )}
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    {imagenes.map((img) => (
+                      <div key={img.key} style={{ position: 'relative' }}>
+                        <img src={img.url} alt="Vista previa" style={{ width: '60px', height: '75px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #334155', display: 'block' }} />
+                        {imagenes.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => quitarImagen(img.key)}
+                            aria-label="Quitar esta imagen"
+                            style={{ position: 'absolute', top: '-6px', right: '-6px', width: '18px', height: '18px', borderRadius: '50%', background: '#f43f5e', border: '1px solid #1e293b', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
+                          >
+                            <X size={11} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#0f172a', color: 'white', padding: '0.65rem 1rem', borderRadius: '8px', border: '1px solid #334155', cursor: 'pointer', fontSize: '0.8rem' }}
                     >
-                      <ImagePlus size={15} /> {imagenFile ? 'Cambiar imagen' : 'Agregar imagen'}
+                      <ImagePlus size={15} /> Agregar imágenes
                     </button>
                   </div>
+                  <p style={{ fontSize: '0.75rem', color: '#64748b' }}>Puedes agregar varias y quitar las que no quieras con la X.</p>
                 </div>
 
                 {formError && <p style={{ color: '#f87171', fontSize: '0.85rem' }}>{formError}</p>}

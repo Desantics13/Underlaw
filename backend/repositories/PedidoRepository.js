@@ -51,8 +51,8 @@ class PedidoRepository {
   async createPending(pedidoData) {
     const query = `
       INSERT INTO producto
-      (nombre_cliente, apellido_cliente, correo_cliente, telefono_cliente, nombre_producto, precio_producto, metodo_pago, estado_pago)
-      VALUES (?, ?, ?, ?, ?, ?, 'Wompi', 'PENDING')
+      (nombre_cliente, apellido_cliente, correo_cliente, telefono_cliente, nombre_producto, precio_producto, talla, metodo_pago, estado_pago)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'Wompi', 'PENDING')
     `;
 
     const values = [
@@ -61,7 +61,8 @@ class PedidoRepository {
       pedidoData.correo_cliente,
       pedidoData.telefono_cliente,
       pedidoData.nombre_producto,
-      pedidoData.precio_producto
+      pedidoData.precio_producto,
+      pedidoData.talla || null
     ];
 
     try {

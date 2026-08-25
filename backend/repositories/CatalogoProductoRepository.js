@@ -1,14 +1,30 @@
 const db = require('../config/db');
+const CatalogoProductoImagenRepository = require('./CatalogoProductoImagenRepository');
 
 class CatalogoProductoRepository {
+  // Adjunta el arreglo "imagenes" (para el carrusel) a cada producto. Si el
+  // producto todavía no tiene filas en catalogo_producto_imagenes (por ejemplo,
+  // no se ha corrido la migración de galería), cae de vuelta a su columna
+  // "imagen" única para no dejar el carrusel vacío.
+  async _conImagenes(productos) {
+    if (productos.length === 0) return productos;
+    const porProducto = await CatalogoProductoImagenRepository.findByProductoIds(productos.map((p) => p.id));
+    return productos.map((p) => ({
+      ...p,
+      imagenes: porProducto[p.id] && porProducto[p.id].length > 0 ? porProducto[p.id] : (p.imagen ? [p.imagen] : [])
+    }));
+  }
+
   async findAll() {
     const [rows] = await db.execute('SELECT * FROM catalogo_productos ORDER BY id DESC');
-    return rows;
+    return this._conImagenes(rows);
   }
 
   async findById(id) {
     const [rows] = await db.execute('SELECT * FROM catalogo_productos WHERE id = ? LIMIT 1', [id]);
-    return rows[0] || null;
+    if (!rows[0]) return null;
+    const [conImagenes] = await this._conImagenes(rows);
+    return conImagenes;
   }
 
   async create({ nombre_lanzamiento, nombre_producto, precio, imagen, imagen_public_id }) {

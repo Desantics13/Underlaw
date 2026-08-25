@@ -97,3 +97,42 @@ CREATE TABLE IF NOT EXISTS notificaciones (
     leida TINYINT(1) NOT NULL DEFAULT 0,
     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- -------------------------------------------------------------------------
+-- ACTUALIZACIÓN: Galería de imágenes por producto (carrusel en Admin y Colección)
+-- Antes cada producto del catálogo tenía una sola imagen (columnas "imagen" /
+-- "imagen_public_id" en catalogo_productos). Esas columnas NO se tocan ni se
+-- eliminan (siguen siendo la portada de respaldo); ahora, además, cada producto
+-- puede tener varias imágenes guardadas en esta tabla aparte, ordenadas por
+-- "orden". Corre este bloque en tu Workbench (Railway) si catalogo_productos
+-- ya existía:
+-- -------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS catalogo_producto_imagenes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    catalogo_producto_id INT NOT NULL,
+    imagen VARCHAR(255) NOT NULL,
+    imagen_public_id VARCHAR(255),
+    orden INT NOT NULL DEFAULT 0,
+    CONSTRAINT fk_imagen_catalogo_producto
+        FOREIGN KEY (catalogo_producto_id) REFERENCES catalogo_productos(id)
+        ON DELETE CASCADE
+);
+
+-- Migra la imagen única que ya tenía cada producto a la tabla nueva (como
+-- primera imagen de su carrusel), sin duplicar si el producto ya tiene filas.
+INSERT INTO catalogo_producto_imagenes (catalogo_producto_id, imagen, imagen_public_id, orden)
+SELECT id, imagen, imagen_public_id, 0
+FROM catalogo_productos
+WHERE imagen IS NOT NULL
+  AND id NOT IN (SELECT catalogo_producto_id FROM catalogo_producto_imagenes);
+
+-- -------------------------------------------------------------------------
+-- ACTUALIZACIÓN: Talla comprada por pedido
+-- OJO: esto va en la tabla "producto" (la de PEDIDOS/compras de clientes),
+-- NO en "catalogo_productos" (esa es solo el catálogo que administra el panel
+-- Admin y no cambia). Un pedido puede traer varios productos a la vez, así que
+-- "talla" guarda una talla por línea del carrito en el mismo orden que ya usa
+-- "nombre_producto" (separadas por coma), igual que ya se hace con ese campo.
+-- Corre esta línea en tu Workbench (Railway):
+-- -------------------------------------------------------------------------
+ALTER TABLE producto ADD COLUMN talla VARCHAR(100);

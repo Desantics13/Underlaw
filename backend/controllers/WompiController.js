@@ -20,6 +20,8 @@ class WompiController {
 
       const nombre_producto = cart.map(item => `${item.quantity}x ${item.name}`).join(', ');
       const precio_producto = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+      // Una talla por línea del carrito, en el mismo orden que nombre_producto
+      const talla = cart.map(item => item.talla || 'N/A').join(', ');
 
       const pedidoData = {
         nombre_cliente: formData.name,
@@ -27,7 +29,8 @@ class WompiController {
         correo_cliente: formData.email,
         telefono_cliente: formData.phone,
         nombre_producto,
-        precio_producto
+        precio_producto,
+        talla
       };
 
       Pedido.validate(pedidoData);
