@@ -16,10 +16,15 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = process.env.EMAIL_FROM || 'Under Law <onboarding@resend.dev>';
 
 class EmailService {
-  async sendInvoiceEmail(toEmail, clientName, pdfBase64) {
+  async sendInvoiceEmail(toEmail, clientName, pdfBase64, fileName) {
     try {
       // Eliminar el prefijo del Data URI si viene incluido
       const base64Clean = pdfBase64.replace(/^data:application\/pdf;base64,/, '');
+      // Nombre del adjunto: "factura-<referencia>.pdf" (o el genérico si no viene)
+      const safeName = String(fileName || 'factura-underlaw')
+        .replace(/[^A-Za-z0-9._-]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'factura-underlaw';
+      const attachmentFilename = safeName.toLowerCase().endsWith('.pdf') ? safeName : `${safeName}.pdf`;
 
       const { data, error } = await resend.emails.send({
         from: FROM_EMAIL,
@@ -37,7 +42,7 @@ class EmailService {
         `,
         attachments: [
           {
-            filename: 'factura-underlaw.pdf',
+            filename: attachmentFilename,
             content: base64Clean
           }
         ]

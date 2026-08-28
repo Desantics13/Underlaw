@@ -19,6 +19,9 @@ backend/.env
 backend/uploads/productos/*
 !backend/uploads/productos/.gitkeep
 
+# Chromium que descarga Puppeteer para generar la factura PDF (ver backend/.puppeteerrc.cjs)
+backend/.cache
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

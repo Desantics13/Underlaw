@@ -209,16 +209,18 @@ class WompiController {
   }
 
   // El envío del correo se intenta aparte: si falla no debe impedir que el pago
-  // quede marcado como APROBADO — eso es lo que ya cobró Wompi. Si no hay un
-  // PDF generado por el navegador, se genera uno en el servidor con los datos
-  // ya guardados en BD. Si hasta eso falla, se manda al menos un aviso simple.
-  async _enviarFactura(pedido, pdfBase64FrontEnd) {
+  // quede marcado como APROBADO — eso es lo que ya cobró Wompi. La factura se
+  // arma siempre en el servidor (con los datos ya guardados en BD y el diseño
+  // de marca), sin importar el método de pago ni si el cliente cerró la
+  // pestaña. Si hasta eso falla, se manda al menos un aviso simple.
+  async _enviarFactura(pedido, _pdfBase64FrontEnd) {
     try {
-      const facturaPdf = pdfBase64FrontEnd || await InvoiceService.buildInvoicePdfBase64(pedido);
+      const facturaPdf = await InvoiceService.buildInvoicePdfBase64(pedido);
       await EmailService.sendInvoiceEmail(
         pedido.correo_cliente,
         `${pedido.nombre_cliente} ${pedido.apellido_cliente}`,
-        facturaPdf
+        facturaPdf,
+        `factura-${pedido.referencia_pago || 'UL-' + pedido.id}`
       );
       await PedidoRepository.updateEstadoByReferencia(pedido.referencia_pago, {
         estado_pago: 'APPROVED',

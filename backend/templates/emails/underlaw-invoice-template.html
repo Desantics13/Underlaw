@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Underlaw - Confirmacion de Pedido</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0; background: #f6f4ee; }
+  .page {
+    width: 794px;
+    min-height: 1123px;
+    background: #f6f4ee;
+    font-family: Georgia, 'Times New Roman', serif;
+    color: #181614;
+    padding: 52px 60px 40px;
+    margin: 0 auto;
+  }
+  .header { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .logo-word { font-family: Georgia, serif; font-style: italic; font-weight: bold; font-size: 44px; line-height: 1; }
+  .eyebrow { font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase; color: rgba(24,22,20,0.55); }
+  .hr { height: 1px; background: rgba(24,22,20,0.18); margin: 26px 0 28px; }
+  .title-block { margin-bottom: 30px; }
+  .order-number { font-size: 26px; font-weight: bold; margin-top: 6px; }
+  .row { display: flex; gap: 36px; margin-bottom: 30px; }
+  .client-col { flex: 1; display: flex; flex-direction: column; gap: 16px; }
+  .client-col .section-label { font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(24,22,20,0.55); border-bottom: 1px solid rgba(24,22,20,0.18); padding-bottom: 10px; }
+  .client-rows { display: flex; flex-direction: column; gap: 13px; font-size: 16px; }
+  .client-rows div { display: flex; justify-content: space-between; gap: 12px; }
+  .label { color: rgba(24,22,20,0.55); }
+  .product-box { width: 270px; border: 1px solid rgba(24,22,20,0.18); padding: 18px; display: flex; flex-direction: column; gap: 14px; background: #fbfaf7; }
+  .product-meta { display: flex; flex-direction: column; gap: 10px; font-size: 15px; }
+  .product-meta .small-label { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(24,22,20,0.5); margin-bottom: 3px; }
+  .product-meta .product-name { font-weight: bold; }
+  .product-meta .line { display: flex; justify-content: space-between; }
+  .summary-box { border: 1px solid rgba(24,22,20,0.18); padding: 22px 24px; display: flex; flex-direction: column; gap: 12px; margin-bottom: 40px; }
+  .summary-box .section-label { font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(24,22,20,0.55); margin-bottom: 2px; }
+  .summary-line { display: flex; justify-content: space-between; font-size: 16px; }
+  .summary-line.muted { color: rgba(24,22,20,0.6); }
+  .summary-total { display: flex; justify-content: space-between; font-size: 19px; font-weight: bold; }
+  .summary-total .amount { color: #7a1f1a; }
+  .seal-wrap { display: flex; justify-content: center; margin: 30px 0 22px; }
+  .seal { width: 104px; height: 104px; border-radius: 50%; border: 1px solid rgba(24,22,20,0.28); padding: 7px; display: flex; align-items: center; justify-content: center; }
+  .seal img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+  .footer { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .footer-line { display: flex; align-items: center; gap: 10px; font-size: 15px; text-align: center; }
+  .footer-meta { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(24,22,20,0.55); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div class="logo-word">Under Law</div>
+    <div class="eyebrow">Legacy of Luxury</div>
+  </div>
+
+  <div class="hr"></div>
+
+  <div class="title-block">
+    <div class="eyebrow">Confirmacion de Pedido</div>
+    <div class="order-number">#{{orderNumber}}</div>
+  </div>
+
+  <div class="row">
+    <div class="client-col">
+      <div class="section-label">Detalles del Cliente</div>
+      <div class="client-rows">
+        <div><span class="label">Fecha</span><span>{{orderDate}}</span></div>
+        <div><span class="label">Cliente</span><span>{{customerName}}</span></div>
+        <div><span class="label">Telefono</span><span>{{customerPhone}}</span></div>
+        <div><span class="label">Referencia</span><span>{{orderNumber}}</span></div>
+      </div>
+    </div>
+
+    <div class="product-box">
+      <div class="product-meta">
+        <div>
+          <div class="small-label">Producto</div>
+          <div class="product-name">{{productName}}</div>
+        </div>
+        <div class="line"><span class="label">Talla</span><span>{{productSize}}</span></div>
+        <div class="line"><span class="label">Cantidad</span><span>{{quantity}}x</span></div>
+        <div class="line"><span class="label">Precio Unitario</span><span>{{unitPrice}}</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!--
+    Bloque de resumen para UN producto. Si el pedido puede tener varios
+    productos, este ".summary-line" de "1x ..." debe repetirse por cada
+    item del carrito antes de renderizar (loop en el backend), dejando
+    Subtotal y Total como una sola linea al final.
+  -->
+  <div class="summary-box">
+    <div class="section-label">Resumen del Pedido</div>
+    <div class="summary-line">
+      <span>{{quantity}}x {{productName}}</span>
+      <span>{{lineTotal}}</span>
+    </div>
+    <div class="summary-line muted">
+      <span>Subtotal</span>
+      <span>{{subtotal}}</span>
+    </div>
+    <div class="hr" style="margin:2px 0;"></div>
+    <div class="summary-total">
+      <span>Total a Pagar</span>
+      <span class="amount">{{total}}</span>
+    </div>
+  </div>
+
+  <div class="seal-wrap">
+    <div class="seal">
+      <img src="data:image/jpeg;base64,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" alt="Under Law">
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="hr" style="width:100%; margin:0;"></div>
+    <div class="footer-line">
+      <span>Gracias por su compra en UNDERLAW! Su pedido esta siendo procesado.</span>
+    </div>
+    <div class="hr" style="width:100%; margin:0;"></div>
+    <div class="footer-meta">www.underlaw.site &middot; @underlaw</div>
+  </div>
+
+</div>
+</body>
+</html>

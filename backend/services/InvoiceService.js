@@ -1,4 +1,6 @@
-const PDFDocument = require('pdfkit');
+const fs = require('fs');
+const path = require('path');
+const puppeteer = require('puppeteer');
 
 // ─────────────────────────────────────────────────────────────────────────
 // Genera la factura en PDF del lado del SERVIDOR, a partir de lo que ya
@@ -11,51 +13,164 @@ const PDFDocument = require('pdfkit');
 // correo de confirmación se enviaba sin factura adjunta. Generándolo acá,
 // con los datos ya persistidos, la factura llega siempre, sin importar el
 // método de pago ni si el cliente cerró la pestaña.
+//
+// El diseño de la factura vive en templates/emails/underlaw-invoice-template.html
+// (HTML/CSS puro, con el sello de la marca ya incrustado en base64). Acá solo
+// se reemplazan los marcadores {{...}} con los datos reales del pedido y se
+// renderiza a PDF con Puppeteer, respetando el tamaño carta del diseño.
 // ─────────────────────────────────────────────────────────────────────────
 
+const TEMPLATE_PATH = path.join(__dirname, '..', 'templates', 'emails', 'underlaw-invoice-template.html');
+
+// Tamaño exacto del diseño (carta a 96 dpi): 794 x 1123 px
+const PAGE_WIDTH_PX = 794;
+const PAGE_HEIGHT_PX = 1123;
+
+let templateCache = null;
+
+function loadTemplate() {
+  if (templateCache === null) {
+    templateCache = fs.readFileSync(TEMPLATE_PATH, 'utf8');
+  }
+  return templateCache;
+}
+
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function formatMoney(amount) {
+  const n = Number(amount) || 0;
+  return `$${n.toLocaleString('es-CO')} COP`;
+}
+
+function formatDate(fecha) {
+  const d = new Date(fecha || Date.now());
+  const valid = !Number.isNaN(d.getTime()) ? d : new Date();
+  return valid.toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+// "1x Oversized Buddha Tee, 2x Oversized First" + "M, L"  ->
+// [{ cantidad: 1, nombre: 'Oversized Buddha Tee', talla: 'M' }, ...]
+function parseItems(pedido) {
+  const nombres = String(pedido.nombre_producto || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const tallas = String(pedido.talla || '')
+    .split(',')
+    .map((s) => s.trim());
+
+  const items = nombres.map((entrada, i) => {
+    const match = entrada.match(/^(\d+)\s*x\s*(.+)$/i);
+    const cantidad = match ? parseInt(match[1], 10) : 1;
+    const nombre = match ? match[2].trim() : entrada;
+    const tallaRaw = tallas[i];
+    const talla = tallaRaw && tallaRaw.toUpperCase() !== 'N/A' ? tallaRaw : null;
+    return { cantidad, nombre, talla };
+  });
+
+  return items.length ? items : [{ cantidad: 1, nombre: String(pedido.nombre_producto || 'Producto'), talla: null }];
+}
+
+// Normalmente se usa el Chrome que descarga Puppeteer al instalarse (ver
+// .puppeteerrc.cjs). Solo si se define PUPPETEER_EXECUTABLE_PATH a un binario
+// existente se usa ese en su lugar.
+function resolveExecutablePath() {
+  const fromEnv = process.env.PUPPETEER_EXECUTABLE_PATH;
+  if (fromEnv && fs.existsSync(fromEnv)) return fromEnv;
+  return undefined;
+}
+
 class InvoiceService {
+  // Rellena la plantilla HTML con los datos reales del pedido.
+  buildInvoiceHtml(pedido) {
+    const items = parseItems(pedido);
+    const total = Number(pedido.precio_producto) || 0;
+    const unSoloProducto = items.length === 1;
+
+    const orderNumber = pedido.referencia_pago || `UL-${pedido.id}`;
+    const unidadesTotales = items.reduce((acc, it) => acc + it.cantidad, 0);
+
+    // ── Cuadro de detalle del producto (arriba a la derecha) ──────────────
+    let productName;
+    let productSize;
+    let quantity;
+    let unitPrice;
+    if (unSoloProducto) {
+      const it = items[0];
+      productName = it.nombre;
+      productSize = it.talla || 'Única';
+      quantity = it.cantidad;
+      unitPrice = formatMoney(it.cantidad ? total / it.cantidad : total);
+    } else {
+      productName = items.map((it) => it.nombre).join(' · ');
+      const tallas = items.map((it) => it.talla).filter(Boolean);
+      productSize = tallas.length ? tallas.join(' · ') : '—';
+      quantity = unidadesTotales;
+      unitPrice = '—'; // la BD solo guarda el total del pedido, no el precio por línea
+    }
+
+    // ── Sección "Resumen del Pedido": una línea por producto ──────────────
+    let html = loadTemplate();
+
+    const summaryRowRegex = /<div class="summary-line">\s*<span>\{\{quantity\}\}x \{\{productName\}\}<\/span>\s*<span>\{\{lineTotal\}\}<\/span>\s*<\/div>/;
+    const summaryRows = items
+      .map((it) => {
+        const etiqueta = it.talla ? `${it.cantidad}x ${escapeHtml(it.nombre)} · Talla ${escapeHtml(it.talla)}` : `${it.cantidad}x ${escapeHtml(it.nombre)}`;
+        const lineTotal = unSoloProducto ? formatMoney(total) : '—';
+        return `<div class="summary-line">\n      <span>${etiqueta}</span>\n      <span>${lineTotal}</span>\n    </div>`;
+      })
+      .join('\n    ');
+    html = html.replace(summaryRowRegex, summaryRows);
+
+    // ── Reemplazo del resto de marcadores ────────────────────────────────
+    const reemplazos = {
+      '{{orderNumber}}': escapeHtml(orderNumber),
+      '{{orderDate}}': escapeHtml(formatDate(pedido.fecha_compra)),
+      '{{customerName}}': escapeHtml(`${pedido.nombre_cliente || ''} ${pedido.apellido_cliente || ''}`.trim()),
+      '{{customerPhone}}': escapeHtml(pedido.telefono_cliente || '—'),
+      '{{productName}}': escapeHtml(productName),
+      '{{productSize}}': escapeHtml(productSize),
+      '{{quantity}}': escapeHtml(quantity),
+      '{{unitPrice}}': escapeHtml(unitPrice),
+      '{{subtotal}}': formatMoney(total),
+      '{{total}}': formatMoney(total)
+    };
+    for (const [marcador, valor] of Object.entries(reemplazos)) {
+      html = html.split(marcador).join(valor);
+    }
+
+    return html;
+  }
+
   // Devuelve un Buffer con el PDF de la factura para un pedido ya guardado en BD
   async buildInvoicePdf(pedido) {
-    return new Promise((resolve, reject) => {
-      try {
-        const doc = new PDFDocument({ size: 'A4', margin: 50 });
-        const chunks = [];
-        doc.on('data', (chunk) => chunks.push(chunk));
-        doc.on('end', () => resolve(Buffer.concat(chunks)));
-        doc.on('error', reject);
+    const html = this.buildInvoiceHtml(pedido);
 
-        doc.fontSize(22).text('Factura - UNDER LAW', { align: 'left' });
-        doc.moveDown(1);
-
-        doc.fontSize(11);
-        doc.text(`Fecha: ${new Date(pedido.fecha_compra || Date.now()).toLocaleDateString('es-CO')}`);
-        doc.text(`Cliente: ${pedido.nombre_cliente} ${pedido.apellido_cliente}`);
-        doc.text(`Correo: ${pedido.correo_cliente}`);
-        if (pedido.telefono_cliente) doc.text(`Teléfono: ${pedido.telefono_cliente}`);
-        doc.text(`Referencia: ${pedido.referencia_pago || '—'}`);
-
-        doc.moveDown(1.2);
-        doc.fontSize(13).text('Productos:');
-        doc.moveDown(0.3);
-        doc.fontSize(11);
-        const items = String(pedido.nombre_producto || '').split(',').map(i => i.trim()).filter(Boolean);
-        const tallas = String(pedido.talla || '').split(',').map(t => t.trim()).filter(Boolean);
-        (items.length ? items : [pedido.nombre_producto]).forEach((item, index) => {
-          const talla = tallas[index] && tallas[index] !== 'N/A' ? ` (Talla: ${tallas[index]})` : '';
-          doc.text(`• ${item}${talla}`);
-        });
-
-        doc.moveDown(1);
-        doc.fontSize(15).text(`Total: $${Number(pedido.precio_producto).toLocaleString('es-CO')} COP`, { align: 'left' });
-
-        doc.moveDown(2);
-        doc.fontSize(9).fillColor('#888888').text('© Under Law — Gracias por tu compra.');
-
-        doc.end();
-      } catch (error) {
-        reject(error);
-      }
+    const browser = await puppeteer.launch({
+      headless: true,
+      executablePath: resolveExecutablePath(),
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--font-render-hinting=none']
     });
+
+    try {
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: 'networkidle0' });
+      const pdf = await page.pdf({
+        width: `${PAGE_WIDTH_PX}px`,
+        height: `${PAGE_HEIGHT_PX}px`,
+        printBackground: true,
+        margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' }
+      });
+      return Buffer.from(pdf);
+    } finally {
+      await browser.close();
+    }
   }
 
   // Conveniencia: arma el PDF y lo devuelve como base64 (mismo formato que espera EmailService)
