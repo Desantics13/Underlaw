@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const puppeteer = require('puppeteer');
+const CatalogoProductoRepository = require('../repositories/CatalogoProductoRepository');
 
 // ─────────────────────────────────────────────────────────────────────────
 // Genera la factura en PDF del lado del SERVIDOR, a partir de lo que ya
@@ -43,9 +44,13 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
-function formatMoney(amount) {
+function formatCOP(amount) {
   const n = Number(amount) || 0;
-  return `$${n.toLocaleString('es-CO')} COP`;
+  return `$${n.toLocaleString('es-CO')}`;
+}
+
+function formatMoney(amount) {
+  return `${formatCOP(amount)} COP`;
 }
 
 function formatDate(fecha) {
@@ -88,7 +93,9 @@ function resolveExecutablePath() {
 
 class InvoiceService {
   // Rellena la plantilla HTML con los datos reales del pedido.
-  buildInvoiceHtml(pedido) {
+  // preciosPorNombre: Map { nombre_producto en minúsculas -> precio del catálogo }
+  // para poner el precio unitario de cada línea (el pedido solo guarda el nombre).
+  buildInvoiceHtml(pedido, preciosPorNombre = new Map()) {
     const items = parseItems(pedido);
     const total = Number(pedido.precio_producto) || 0;
     const unSoloProducto = items.length === 1;
@@ -96,34 +103,46 @@ class InvoiceService {
     const orderNumber = pedido.referencia_pago || `UL-${pedido.id}`;
     const unidadesTotales = items.reduce((acc, it) => acc + it.cantidad, 0);
 
+    // Precio unitario de cada línea, tomado del catálogo por nombre. Si no se
+    // encuentra (producto renombrado/borrado) y el pedido es de un solo
+    // producto, se reparte el total; si son varios, esa línea queda sin precio.
+    const conPrecio = items.map((it) => {
+      const delCatalogo = preciosPorNombre.get(it.nombre.trim().toLowerCase());
+      let unitario = Number.isFinite(delCatalogo) ? delCatalogo : null;
+      if (unitario == null && unSoloProducto) unitario = it.cantidad ? total / it.cantidad : total;
+      const valorLinea = unSoloProducto
+        ? total // lo realmente cobrado
+        : (unitario != null ? unitario * it.cantidad : null);
+      return { ...it, unitario, valorLinea };
+    });
+
     // ── Cuadro de detalle del producto (arriba a la derecha) ──────────────
     let productName;
     let productSize;
     let quantity;
-    let unitPrice;
     if (unSoloProducto) {
       const it = items[0];
       productName = it.nombre;
       productSize = it.talla || 'Única';
       quantity = it.cantidad;
-      unitPrice = formatMoney(it.cantidad ? total / it.cantidad : total);
     } else {
       productName = items.map((it) => it.nombre).join(' · ');
       const tallas = items.map((it) => it.talla).filter(Boolean);
       productSize = tallas.length ? tallas.join(' · ') : '—';
       quantity = unidadesTotales;
-      unitPrice = '—'; // la BD solo guarda el total del pedido, no el precio por línea
     }
 
     // ── Sección "Resumen del Pedido": una línea por producto ──────────────
     let html = loadTemplate();
 
     const summaryRowRegex = /<div class="summary-line">\s*<span>\{\{quantity\}\}x \{\{productName\}\}<\/span>\s*<span>\{\{lineTotal\}\}<\/span>\s*<\/div>/;
-    const summaryRows = items
+    const summaryRows = conPrecio
       .map((it) => {
-        const etiqueta = it.talla ? `${it.cantidad}x ${escapeHtml(it.nombre)} · Talla ${escapeHtml(it.talla)}` : `${it.cantidad}x ${escapeHtml(it.nombre)}`;
-        const lineTotal = unSoloProducto ? formatMoney(total) : '—';
-        return `<div class="summary-line">\n      <span>${etiqueta}</span>\n      <span>${lineTotal}</span>\n    </div>`;
+        const partes = [`${it.cantidad}x ${escapeHtml(it.nombre)}`];
+        if (it.talla) partes.push(`Talla ${escapeHtml(it.talla)}`);
+        if (it.unitario != null && it.cantidad > 1) partes.push(`${formatCOP(it.unitario)} c/u`);
+        const derecha = it.valorLinea != null ? formatMoney(it.valorLinea) : '—';
+        return `<div class="summary-line">\n      <span>${partes.join(' · ')}</span>\n      <span>${derecha}</span>\n    </div>`;
       })
       .join('\n    ');
     html = html.replace(summaryRowRegex, summaryRows);
@@ -137,7 +156,6 @@ class InvoiceService {
       '{{productName}}': escapeHtml(productName),
       '{{productSize}}': escapeHtml(productSize),
       '{{quantity}}': escapeHtml(quantity),
-      '{{unitPrice}}': escapeHtml(unitPrice),
       '{{subtotal}}': formatMoney(total),
       '{{total}}': formatMoney(total)
     };
@@ -150,7 +168,13 @@ class InvoiceService {
 
   // Devuelve un Buffer con el PDF de la factura para un pedido ya guardado en BD
   async buildInvoicePdf(pedido) {
-    const html = this.buildInvoiceHtml(pedido);
+    let preciosPorNombre = new Map();
+    try {
+      preciosPorNombre = await CatalogoProductoRepository.preciosPorNombre();
+    } catch (error) {
+      console.error('No se pudieron cargar los precios del catálogo para la factura:', error);
+    }
+    const html = this.buildInvoiceHtml(pedido, preciosPorNombre);
 
     const browser = await puppeteer.launch({
       headless: true,

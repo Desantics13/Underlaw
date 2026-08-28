@@ -52,6 +52,18 @@ class CatalogoProductoRepository {
   async delete(id) {
     await db.execute('DELETE FROM catalogo_productos WHERE id = ?', [id]);
   }
+
+  // Mapa { nombre_producto (minúsculas, sin espacios extra) -> precio } de todo
+  // el catálogo. Lo usa la factura para poner el precio unitario de cada línea
+  // del pedido (que solo guarda el nombre del producto como texto, no su id).
+  async preciosPorNombre() {
+    const [rows] = await db.execute('SELECT nombre_producto, precio FROM catalogo_productos');
+    const mapa = new Map();
+    for (const row of rows) {
+      mapa.set(String(row.nombre_producto || '').trim().toLowerCase(), Number(row.precio));
+    }
+    return mapa;
+  }
 }
 
 module.exports = new CatalogoProductoRepository();
