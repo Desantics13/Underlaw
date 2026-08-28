@@ -103,16 +103,21 @@ class InvoiceService {
     const orderNumber = pedido.referencia_pago || `UL-${pedido.id}`;
     const unidadesTotales = items.reduce((acc, it) => acc + it.cantidad, 0);
 
-    // Precio unitario de cada línea, tomado del catálogo por nombre. Si no se
-    // encuentra (producto renombrado/borrado) y el pedido es de un solo
-    // producto, se reparte el total; si son varios, esa línea queda sin precio.
+    // Precio unitario y valor de cada línea:
+    //  - Pedido de UN solo producto: el precio unitario exacto es total/cantidad
+    //    (es lo que realmente se cobró) y el valor de la línea es el total. No
+    //    hace falta el catálogo y así nunca hay descuadres.
+    //  - Pedido de VARIOS productos: la BD no guarda el precio por línea, así que
+    //    se toma del catálogo por nombre. Si no se encuentra (producto
+    //    renombrado/borrado), esa línea queda sin precio ("—").
     const conPrecio = items.map((it) => {
+      if (unSoloProducto) {
+        const unitario = it.cantidad ? total / it.cantidad : total;
+        return { ...it, unitario, valorLinea: total };
+      }
       const delCatalogo = preciosPorNombre.get(it.nombre.trim().toLowerCase());
-      let unitario = Number.isFinite(delCatalogo) ? delCatalogo : null;
-      if (unitario == null && unSoloProducto) unitario = it.cantidad ? total / it.cantidad : total;
-      const valorLinea = unSoloProducto
-        ? total // lo realmente cobrado
-        : (unitario != null ? unitario * it.cantidad : null);
+      const unitario = Number.isFinite(delCatalogo) ? delCatalogo : null;
+      const valorLinea = unitario != null ? unitario * it.cantidad : null;
       return { ...it, unitario, valorLinea };
     });
 
@@ -157,7 +162,10 @@ class InvoiceService {
       '{{productSize}}': escapeHtml(productSize),
       '{{quantity}}': escapeHtml(quantity),
       '{{subtotal}}': formatMoney(total),
-      '{{total}}': formatMoney(total)
+      '{{total}}': formatMoney(total),
+      // Sólo se usa si el bloque de líneas del resumen no se pudo reemplazar
+      // (plantilla editada): evita que quede un "{{lineTotal}}" literal.
+      '{{lineTotal}}': '—'
     };
     for (const [marcador, valor] of Object.entries(reemplazos)) {
       html = html.split(marcador).join(valor);
