@@ -17,7 +17,6 @@
     "multer": "^2.2.0",
     "mysql2": "^3.22.3",
     "nodemailer": "^8.0.7",
-    "pdfkit": "^0.19.1",
     "puppeteer": "^25.9.0",
     "resend": "^6.22.0"
   }

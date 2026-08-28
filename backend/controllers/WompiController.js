@@ -65,11 +65,12 @@ class WompiController {
     }
   }
 
-  // 2. El frontend llama esto justo después de que el Widget devuelve un resultado
-  //    APROBADO, adjuntando la factura en PDF generada en el navegador.
+  // 2. El frontend llama esto justo después de que el Widget devuelve un
+  //    resultado APROBADO. La factura se arma siempre en el servidor
+  //    (ver _enviarFactura), así que acá solo hace falta la referencia.
   async confirmarPago(req, res) {
     try {
-      const { reference, pdfBase64 } = req.body;
+      const { reference } = req.body;
       if (!reference) {
         return res.status(400).json({ error: 'Falta la referencia del pago' });
       }
@@ -79,7 +80,7 @@ class WompiController {
         return res.status(404).json({ error: 'Pedido no encontrado para esa referencia' });
       }
 
-      await this._reconciliarPedido(pedido, 'APPROVED', null, pdfBase64);
+      await this._reconciliarPedido(pedido, 'APPROVED', null);
 
       res.status(200).json({ message: 'Pedido confirmado', pedidoId: pedido.id });
     } catch (error) {
@@ -107,7 +108,7 @@ class WompiController {
         return res.status(200).json({ message: 'El pedido ya estaba aprobado, no se modifica' });
       }
 
-      await this._reconciliarPedido(pedido, estado_pago || 'VOIDED', null, null);
+      await this._reconciliarPedido(pedido, estado_pago || 'VOIDED', null);
 
       res.status(200).json({ message: 'Pedido marcado como cancelado' });
     } catch (error) {
@@ -136,7 +137,7 @@ class WompiController {
         try {
           const transaccion = await WompiService.consultarTransaccion(transactionId);
           if (transaccion && transaccion.status && transaccion.status !== 'PENDING') {
-            await this._reconciliarPedido(pedido, transaccion.status, transaccion.id, null);
+            await this._reconciliarPedido(pedido, transaccion.status, transaccion.id);
             pedido = await PedidoRepository.findByReferencia(reference);
           }
         } catch (wompiError) {
@@ -173,7 +174,7 @@ class WompiController {
         return res.status(200).json({ message: 'Referencia no encontrada, ignorado' });
       }
 
-      await this._reconciliarPedido(pedido, transaction.status, transaction.id, null);
+      await this._reconciliarPedido(pedido, transaction.status, transaction.id);
 
       res.status(200).json({ message: 'Evento procesado' });
     } catch (error) {
@@ -187,7 +188,7 @@ class WompiController {
   // callback del Widget vía confirmarPago, la consulta directa a Wompi al
   // volver de un pago que sacó al cliente de la página, y el webhook oficial)
   // para no duplicar la lógica de notificar al Admin y mandar la factura.
-  async _reconciliarPedido(pedido, nuevoEstado, wompiTransactionId, pdfBase64FrontEnd) {
+  async _reconciliarPedido(pedido, nuevoEstado, wompiTransactionId) {
     const yaEstabaAprobado = pedido.estado_pago === 'APPROVED';
 
     await PedidoRepository.updateEstadoByReferencia(pedido.referencia_pago, {
@@ -204,7 +205,7 @@ class WompiController {
     }
 
     if (nuevoEstado === 'APPROVED' && !pedido.email_enviado) {
-      await this._enviarFactura(pedido, pdfBase64FrontEnd);
+      await this._enviarFactura(pedido);
     }
   }
 
@@ -213,7 +214,7 @@ class WompiController {
   // arma siempre en el servidor (con los datos ya guardados en BD y el diseño
   // de marca), sin importar el método de pago ni si el cliente cerró la
   // pestaña. Si hasta eso falla, se manda al menos un aviso simple.
-  async _enviarFactura(pedido, _pdfBase64FrontEnd) {
+  async _enviarFactura(pedido) {
     try {
       const facturaPdf = await InvoiceService.buildInvoicePdfBase64(pedido);
       await EmailService.sendInvoiceEmail(
