@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "postinstall": "node node_modules/puppeteer/install.mjs",
+    "build": "node node_modules/puppeteer/install.mjs"
   },
   "dependencies": {
     "cloudinary": "^2.10.1",
