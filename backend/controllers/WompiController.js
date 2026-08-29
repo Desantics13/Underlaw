@@ -215,13 +215,15 @@ class WompiController {
   // de marca), sin importar el método de pago ni si el cliente cerró la
   // pestaña. Si hasta eso falla, se manda al menos un aviso simple.
   async _enviarFactura(pedido) {
+    const fileName = `factura-${pedido.referencia_pago || 'UL-' + pedido.id}`;
+    let facturaPdf = null;
     try {
-      const facturaPdf = await InvoiceService.buildInvoicePdfBase64(pedido);
+      facturaPdf = await InvoiceService.buildInvoicePdfBase64(pedido);
       await EmailService.sendInvoiceEmail(
         pedido.correo_cliente,
         `${pedido.nombre_cliente} ${pedido.apellido_cliente}`,
         facturaPdf,
-        `factura-${pedido.referencia_pago || 'UL-' + pedido.id}`
+        fileName
       );
       await PedidoRepository.updateEstadoByReferencia(pedido.referencia_pago, {
         estado_pago: 'APPROVED',
@@ -241,6 +243,24 @@ class WompiController {
       } catch (fallbackError) {
         console.error('Error también en el correo de respaldo (el pago sí queda confirmado):', fallbackError);
       }
+    }
+
+    // Notificación interna al equipo (ADICIONAL al correo del cliente). Se hace
+    // en el mismo punto donde se dispara la factura del cliente y con la misma
+    // factura PDF. Nunca lanza: si falla, sólo queda en logs y no afecta ni el
+    // correo del cliente ni el estado APROBADO del pago.
+    await this._notificarCompraInterna(pedido, facturaPdf, fileName);
+  }
+
+  async _notificarCompraInterna(pedido, facturaPdfBase64, fileName) {
+    try {
+      await EmailService.sendInternalSaleNotificationEmail(pedido, facturaPdfBase64, fileName);
+    } catch (error) {
+      console.error(
+        `No se pudo enviar la notificación interna de compra (pedido ${pedido.id}, referencia ${pedido.referencia_pago}). ` +
+        'El correo al cliente y la confirmación del pago no se ven afectados:',
+        error
+      );
     }
   }
 }
