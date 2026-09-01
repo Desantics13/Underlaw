@@ -14,6 +14,12 @@ const Products = () => {
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [quickViewProduct, setQuickViewProduct] = useState(null);
+  // Deep-link ?producto=<id> (lo usa el correo de lanzamiento): abre la vista
+  // rápida de ese producto en cuanto el catálogo carga.
+  const [deepLinkProductId, setDeepLinkProductId] = useState(() => {
+    const raw = new URLSearchParams(window.location.search).get('producto');
+    return raw && /^\d+$/.test(raw) ? Number(raw) : null;
+  });
   const [checkoutStep, setCheckoutStep] = useState('cart'); // cart, info, address, payment, declined, success
   const [formData, setFormData] = useState({ name: '', lastName: '', phone: '', email: '', doc: '', pais: '', municipio: '', ciudad: '', direccion: '' });
   const [isProcessing, setIsProcessing] = useState(false);
@@ -48,6 +54,19 @@ const Products = () => {
       .catch(err => console.error('Error al obtener el catálogo:', err))
       .finally(() => setLoadingProducts(false));
   }, []);
+
+  // Abre la vista rápida del producto indicado en ?producto=<id> una vez que el
+  // catálogo ya cargó (mismo patrón que la lectura de wompi_ref de más abajo).
+  useEffect(() => {
+    if (deepLinkProductId == null || productsList.length === 0) return;
+    const match = productsList.find(p => p.id === deepLinkProductId);
+    if (match && match.estado !== 'suspendido') setQuickViewProduct(match);
+    setDeepLinkProductId(null);
+    const params = new URLSearchParams(window.location.search);
+    params.delete('producto');
+    const qs = params.toString();
+    window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+  }, [deepLinkProductId, productsList]);
 
   // Al volver de un pago que sacó al cliente de la página (Nequi, PSE, etc.), Wompi
   // redirige de vuelta acá con la referencia y su propio ID de transacción en la URL.

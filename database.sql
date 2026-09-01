@@ -136,3 +136,60 @@ WHERE imagen IS NOT NULL
 -- Corre esta línea en tu Workbench (Railway):
 -- -------------------------------------------------------------------------
 ALTER TABLE producto ADD COLUMN talla VARCHAR(100);
+
+-- -------------------------------------------------------------------------
+-- ACTUALIZACIÓN: Sistema de Lanzamiento (drop) con cuenta regresiva
+--
+-- Un "lanzamiento" es la configuración PROGRAMADA de un drop: nombre, producto,
+-- precio, imágenes y fecha/hora. NO es un producto del catálogo — no crea nada
+-- en "catalogo_productos" hasta que se cumple la fecha. En ese momento el
+-- backend (services/LanzamientoService.js) crea el producto real, lo deja
+-- activo/comprable, guarda su id en "producto_id" y marca estado = 'lanzado'.
+--
+-- fecha_lanzamiento SE GUARDA EN UTC (el negocio opera en Colombia UTC-5; el
+-- frontend convierte antes de enviar y muestra siempre hora de Colombia).
+--
+-- "imagenes" es un arreglo JSON [{ "url": ..., "publicId": ... }, ...] con las
+-- imágenes ya subidas a Cloudinary (mismo flujo que el catálogo).
+--
+-- Corre este bloque en tu Workbench (Railway) ANTES de desplegar el código:
+-- -------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS lanzamientos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre_lanzamiento VARCHAR(150) NOT NULL,
+    nombre_producto    VARCHAR(150) NOT NULL,
+    precio             DECIMAL(10, 2) NOT NULL,
+    imagenes           JSON NOT NULL,
+    fecha_lanzamiento  DATETIME NOT NULL,
+    activo_en_home     TINYINT(1) NOT NULL DEFAULT 0,
+    estado             ENUM('programado', 'lanzado') NOT NULL DEFAULT 'programado',
+    producto_id        INT NULL,
+    created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_lanzamiento_pendiente (estado, fecha_lanzamiento),
+    CONSTRAINT fk_lanzamiento_producto
+        FOREIGN KEY (producto_id) REFERENCES catalogo_productos(id)
+        ON DELETE SET NULL
+);
+
+-- Inscritos ("Inscribirme" en el Home). Tabla propia (no JSON dentro de
+-- lanzamientos) porque:
+--  - cada inscrito va atado a SU lanzamiento (lanzamiento_id) para saber a
+--    quién avisar cuando ese drop se cumpla;
+--  - "notificado_at" hace idempotente el envío de correos (no reenvía si el
+--    job corre de nuevo);
+--  - el índice único (lanzamiento_id, correo) evita inscripciones duplicadas
+--    de la misma persona en el mismo lanzamiento.
+CREATE TABLE IF NOT EXISTS lanzamiento_inscritos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    lanzamiento_id INT NOT NULL,
+    nombre    VARCHAR(100) NOT NULL,
+    apellido  VARCHAR(100) NOT NULL,
+    correo    VARCHAR(150) NOT NULL,
+    telefono  VARCHAR(30)  NOT NULL,
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    notificado_at DATETIME NULL,
+    CONSTRAINT fk_inscrito_lanzamiento
+        FOREIGN KEY (lanzamiento_id) REFERENCES lanzamientos(id)
+        ON DELETE CASCADE,
+    UNIQUE KEY uq_inscrito_correo_lanzamiento (lanzamiento_id, correo)
+);

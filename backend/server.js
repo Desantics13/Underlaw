@@ -14,6 +14,8 @@ const pedidoRoutes = require('./routes/pedidoRoutes');
 const wompiRoutes = require('./routes/wompiRoutes');
 const catalogoRoutes = require('./routes/catalogoRoutes');
 const notificacionRoutes = require('./routes/notificacionRoutes');
+const lanzamientoRoutes = require('./routes/lanzamientoRoutes');
+const LanzamientoService = require('./services/LanzamientoService');
 
 const app = express();
 
@@ -30,6 +32,7 @@ app.use('/api/pedidos', pedidoRoutes);
 app.use('/api/wompi', wompiRoutes);
 app.use('/api/catalogo', catalogoRoutes);
 app.use('/api/notificaciones', notificacionRoutes);
+app.use('/api/lanzamientos', lanzamientoRoutes);
 
 // Manejo de errores global
 app.use((err, req, res, next) => {
@@ -42,3 +45,21 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Servidor Backend corriendo en http://localhost:${PORT}`);
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// SCHEDULER DE LANZAMIENTOS (drops con cuenta regresiva)
+//
+// Revisa cada minuto si algún lanzamiento programado ya llegó a su fecha y, de
+// ser así, crea el producto real en el catálogo y avisa a los inscritos. Es la
+// fuente de verdad del "cronómetro" (el reloj del navegador no es confiable).
+// El endpoint público GET /api/lanzamientos/home hace además este mismo chequeo
+// de forma perezosa, así que el disparo no depende solo de este intervalo.
+// Todo el proceso es idempotente (ver services/LanzamientoService.js).
+// ─────────────────────────────────────────────────────────────────────────
+const LANZAMIENTO_TICK_MS = 60 * 1000;
+const dispararProcesoLanzamientos = () =>
+  LanzamientoService.procesarVencidos().catch((err) =>
+    console.error('Scheduler de lanzamientos:', err)
+  );
+setTimeout(dispararProcesoLanzamientos, 5000);
+setInterval(dispararProcesoLanzamientos, LANZAMIENTO_TICK_MS);

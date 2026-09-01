@@ -17,6 +17,9 @@ const FROM_EMAIL = process.env.EMAIL_FROM || 'Under Law <onboarding@resend.dev>'
 // Buzón interno del equipo, para la notificación que se manda por cada compra
 // aprobada (adicional al correo del cliente). Se puede sobreescribir por env.
 const INTERNAL_NOTIFICATION_EMAIL = process.env.INTERNAL_NOTIFICATION_EMAIL || 'underlawcompany@gmail.com';
+// URL pública del frontend, para armar el enlace directo al producto en el
+// correo de "lanzamiento ya disponible". Sobreescribir por env en Railway.
+const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://underlaw.site').replace(/\/+$/, '');
 
 function formatCOP(amount) {
   const n = Number(amount) || 0;
@@ -141,6 +144,38 @@ class EmailService {
 
     if (error) throw new Error(error.message || 'Resend devolvió un error al enviar la notificación interna');
     console.log('Notificación interna de compra enviada: ' + data?.id);
+    return true;
+  }
+
+  // Aviso al inscrito de un LANZAMIENTO cuando el producto ya quedó disponible
+  // para compra. Lo dispara services/LanzamientoService.js una sola vez por
+  // persona (marca notificado_at tras el envío). Si lanza, el service NO marca
+  // la fila y reintenta en el próximo tick del scheduler.
+  async sendLaunchAvailableEmail(inscrito, lanzamiento, productoId) {
+    const nombre = (inscrito.nombre || '').trim() || 'Hola';
+    const enlaceProducto = `${FRONTEND_URL}/products?producto=${productoId}`;
+
+    const { data, error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: inscrito.correo,
+      subject: `Ya disponible: ${lanzamiento.nombre_producto} - Under Law`,
+      html: `
+        <div style="font-family: Arial, sans-serif; background:#050505; padding:32px 20px; color:#e5e5e5;">
+          <div style="max-width:560px; margin:0 auto; border:1px solid #1f1f1f; background:#0a0a0a; padding:40px;">
+            <p style="text-transform:uppercase; letter-spacing:0.25em; font-size:0.7rem; color:#8a8a8a; margin:0 0 24px;">${lanzamiento.nombre_lanzamiento}</p>
+            <h1 style="font-family:Georgia,'Times New Roman',serif; font-style:italic; font-weight:400; color:#fff; font-size:1.9rem; margin:0 0 16px;">${lanzamiento.nombre_producto}</h1>
+            <p style="color:#bdbdbd; line-height:1.6; margin:0 0 8px;">${nombre}, el lanzamiento al que te inscribiste ya está disponible para compra.</p>
+            <p style="color:#bdbdbd; line-height:1.6; margin:0 0 28px;">Precio: <strong style="color:#fff;">${formatCOP(lanzamiento.precio)}</strong></p>
+            <a href="${enlaceProducto}" style="display:inline-block; background:#fff; color:#050505; text-decoration:none; text-transform:uppercase; letter-spacing:0.1em; font-size:0.8rem; font-weight:bold; padding:16px 32px;">Ver producto</a>
+            <p style="font-size:0.8rem; color:#6b6b6b; margin:28px 0 0; word-break:break-all;">O copia este enlace: ${enlaceProducto}</p>
+            <p style="font-size:0.8rem; color:#6b6b6b; margin-top:24px; border-top:1px solid #1f1f1f; padding-top:16px;">&copy; 2026 UNDER LAW - Legacy of Luxury.</p>
+          </div>
+        </div>
+      `
+    });
+
+    if (error) throw new Error(error.message || 'Resend devolvió un error al enviar el correo de lanzamiento');
+    console.log('Correo de lanzamiento enviado: ' + data?.id);
     return true;
   }
 

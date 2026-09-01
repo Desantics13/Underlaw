@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart3, LogOut, Bell, Settings, CheckCircle, Clock, User, X, Eye, LayoutDashboard } from 'lucide-react';
+import { BarChart3, LogOut, Bell, Settings, CheckCircle, Clock, User, X, Eye, LayoutDashboard, Rocket } from 'lucide-react';
 import ProductosPanel from '../components/ProductosPanel';
+import LanzamientosPanel from '../components/LanzamientosPanel';
 
 const ADMIN_PASSWORD = 'admin';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -32,7 +33,7 @@ const Admin = () => {
   const [selectedPedido, setSelectedPedido] = useState(null);
   const [selectedDireccion, setSelectedDireccion] = useState(null);
   const [paginaActual, setPaginaActual] = useState(1);
-  const [activeView, setActiveView] = useState('pedidos'); // 'pedidos' | 'productos'
+  const [activeView, setActiveView] = useState('pedidos'); // 'pedidos' | 'productos' | 'lanzamientos'
   const notifRef = useRef(null);
 
   useEffect(() => {
@@ -228,12 +229,19 @@ const Admin = () => {
               </AnimatePresence>
             </div>
 
-            <button
-              onClick={() => setActiveView(prev => (prev === 'productos' ? 'pedidos' : 'productos'))}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: activeView === 'productos' ? '#3b82f6' : '#1e293b', color: 'white', padding: '0.75rem 1.25rem', borderRadius: '8px', border: activeView === 'productos' ? '1px solid #3b82f6' : '1px solid #334155', cursor: 'pointer', fontSize: '0.85rem' }}
-            >
-              {activeView === 'productos' ? <><LayoutDashboard size={16} /> Ver Pedidos</> : <><Settings size={16} /> Productos</>}
-            </button>
+            {[
+              { key: 'pedidos', label: 'Pedidos', Icon: LayoutDashboard },
+              { key: 'productos', label: 'Productos', Icon: Settings },
+              { key: 'lanzamientos', label: 'Lanzamientos', Icon: Rocket },
+            ].map(({ key, label, Icon }) => (
+              <button
+                key={key}
+                onClick={() => setActiveView(key)}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: activeView === key ? '#3b82f6' : '#1e293b', color: 'white', padding: '0.75rem 1.25rem', borderRadius: '8px', border: activeView === key ? '1px solid #3b82f6' : '1px solid #334155', cursor: 'pointer', fontSize: '0.85rem' }}
+              >
+                <Icon size={16} /> {label}
+              </button>
+            ))}
 
             <button onClick={handleLogout} title="Cerrar Sesión" style={{ background: '#1e293b', color: '#f43f5e', padding: '0.75rem', borderRadius: '8px', border: '1px solid #334155', cursor: 'pointer' }}>
               <LogOut size={18} />
@@ -243,6 +251,8 @@ const Admin = () => {
 
         {activeView === 'productos' ? (
           <ProductosPanel />
+        ) : activeView === 'lanzamientos' ? (
+          <LanzamientosPanel />
         ) : (
         <>
         {/* Tarjetas de Resumen */}
