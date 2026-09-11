@@ -1,9 +1,15 @@
 const db = require('../config/db');
 
-// "imagenes" es una columna JSON con un arreglo [{ url, publicId }, ...].
-// mysql2 normalmente ya la devuelve parseada; el parse defensivo cubre el caso
-// en que llegue como string.
-function parseImagenes(valor) {
+const DEFAULT_TALLAS = [
+  { talla: 'S', cantidad: null },
+  { talla: 'M', cantidad: null },
+  { talla: 'L', cantidad: null },
+  { talla: 'XL', cantidad: null }
+];
+
+// "imagenes" y "tallas" son columnas JSON. mysql2 normalmente ya las devuelve
+// parseadas; el parse defensivo cubre el caso en que lleguen como string.
+function parseJsonArray(valor) {
   if (Array.isArray(valor)) return valor;
   if (!valor) return [];
   try {
@@ -23,7 +29,8 @@ function hidratar(row) {
     // (ver SELECT), así el frontend puede hacer new Date(...) sin ambigüedad de
     // zona horaria y sin depender de la config de timezone del pool.
     fecha_lanzamiento: fecha_lanzamiento_utc,
-    imagenes: parseImagenes(resto.imagenes)
+    imagenes: parseJsonArray(resto.imagenes),
+    tallas: parseJsonArray(resto.tallas)
   };
 }
 
@@ -50,24 +57,38 @@ class LanzamientoRepository {
   }
 
   // fecha_lanzamiento: string MySQL 'YYYY-MM-DD HH:MM:SS' ya en UTC.
-  async create({ nombre_lanzamiento, nombre_producto, precio, imagenes, fecha_lanzamiento, activo_en_home }) {
+  async create({ nombre_lanzamiento, nombre_producto, precio, imagenes, fecha_lanzamiento, activo_en_home, descripcion, detalle, tallas, seccion_id }) {
     const [result] = await db.execute(
-      `INSERT INTO lanzamientos (nombre_lanzamiento, nombre_producto, precio, imagenes, fecha_lanzamiento, activo_en_home, estado)
-       VALUES (?, ?, ?, ?, ?, ?, 'programado')`,
-      [nombre_lanzamiento, nombre_producto, precio, JSON.stringify(imagenes || []), fecha_lanzamiento, activo_en_home ? 1 : 0]
+      `INSERT INTO lanzamientos
+        (nombre_lanzamiento, nombre_producto, precio, imagenes, fecha_lanzamiento, activo_en_home, estado, descripcion, detalle, tallas, seccion_id)
+       VALUES (?, ?, ?, ?, ?, ?, 'programado', ?, ?, ?, ?)`,
+      [
+        nombre_lanzamiento, nombre_producto, precio, JSON.stringify(imagenes || []), fecha_lanzamiento, activo_en_home ? 1 : 0,
+        descripcion || null, detalle || null, JSON.stringify(tallas || DEFAULT_TALLAS), seccion_id || null
+      ]
     );
     // Si se crea ya activo en el Home, apaga cualquier otro que estuviera activo.
     if (activo_en_home) await this.setActivoHome(result.insertId, true);
     return this.findById(result.insertId);
   }
 
-  async update(id, { nombre_lanzamiento, nombre_producto, precio, imagenes, fecha_lanzamiento }) {
-    await db.execute(
-      `UPDATE lanzamientos
-       SET nombre_lanzamiento = ?, nombre_producto = ?, precio = ?, imagenes = ?, fecha_lanzamiento = ?
-       WHERE id = ?`,
-      [nombre_lanzamiento, nombre_producto, precio, JSON.stringify(imagenes || []), fecha_lanzamiento, id]
-    );
+  async update(id, { nombre_lanzamiento, nombre_producto, precio, imagenes, fecha_lanzamiento, descripcion, detalle, tallas, seccion_id }) {
+    const campos = ['nombre_lanzamiento = ?', 'nombre_producto = ?', 'precio = ?', 'imagenes = ?', 'fecha_lanzamiento = ?', 'descripcion = ?', 'detalle = ?', 'seccion_id = ?'];
+    const valores = [nombre_lanzamiento, nombre_producto, precio, JSON.stringify(imagenes || []), fecha_lanzamiento, descripcion || null, detalle || null, seccion_id || null];
+
+    if (tallas !== undefined && tallas !== null) {
+      campos.push('tallas = ?');
+      valores.push(JSON.stringify(tallas));
+    }
+
+    valores.push(id);
+    await db.execute(`UPDATE lanzamientos SET ${campos.join(', ')} WHERE id = ?`, valores);
+    return this.findById(id);
+  }
+
+  // Solo las tallas/cantidades (panel Inventario), sin tocar el resto del lanzamiento.
+  async updateTallas(id, tallas) {
+    await db.execute('UPDATE lanzamientos SET tallas = ? WHERE id = ?', [JSON.stringify(tallas), id]);
     return this.findById(id);
   }
 

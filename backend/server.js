@@ -15,24 +15,53 @@ const wompiRoutes = require('./routes/wompiRoutes');
 const catalogoRoutes = require('./routes/catalogoRoutes');
 const notificacionRoutes = require('./routes/notificacionRoutes');
 const lanzamientoRoutes = require('./routes/lanzamientoRoutes');
+const seccionRoutes = require('./routes/seccionRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const inventarioRoutes = require('./routes/inventarioRoutes');
 const LanzamientoService = require('./services/LanzamientoService');
 
 const app = express();
 
+// Orígenes permitidos a mandar credenciales/headers propios (como Authorization
+// del panel Admin). FRONTEND_URL cubre el dominio real de producción configurado
+// en Railway; el resto son los dominios conocidos del sitio y el entorno local.
+const ALLOWED_ORIGINS = [
+  process.env.FRONTEND_URL,
+  'https://underlaw.site',
+  'https://www.underlaw.site',
+  'http://localhost:5173',
+  'http://localhost:3000'
+].filter(Boolean);
+
+const corsOptions = {
+  origin(origin, callback) {
+    // Sin "origin" (curl, Postman, el propio webhook de Wompi server-to-server)
+    // se permite: no es un navegador el que necesita el header CORS.
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+    callback(new Error('Origen no permitido por CORS'));
+  },
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
 // Aumentar el límite de payload para aceptar el PDF en base64
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
-app.use(cors());
+app.use(cors(corsOptions));
 
 // Sirve las imágenes de productos guardadas localmente (ver services/ImageStorageService.js)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Rutas base
+app.use('/api/admin', adminRoutes);
 app.use('/api/pedidos', pedidoRoutes);
 app.use('/api/wompi', wompiRoutes);
 app.use('/api/catalogo', catalogoRoutes);
 app.use('/api/notificaciones', notificacionRoutes);
 app.use('/api/lanzamientos', lanzamientoRoutes);
+app.use('/api/secciones', seccionRoutes);
+app.use('/api/inventario', inventarioRoutes);
 
 // Manejo de errores global
 app.use((err, req, res, next) => {

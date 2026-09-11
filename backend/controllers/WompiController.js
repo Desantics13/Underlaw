@@ -1,11 +1,35 @@
 const PedidoRepository = require('../repositories/PedidoRepository');
 const DireccionRepository = require('../repositories/DireccionRepository');
 const NotificacionRepository = require('../repositories/NotificacionRepository');
+const CatalogoProductoRepository = require('../repositories/CatalogoProductoRepository');
+const PedidoItemRepository = require('../repositories/PedidoItemRepository');
 const EmailService = require('../services/EmailService');
 const InvoiceService = require('../services/InvoiceService');
 const WompiService = require('../services/WompiService');
+const InventarioService = require('../services/InventarioService');
 const Pedido = require('../models/Pedido');
 const wompiConfig = require('../config/wompi');
+
+// Rechaza el pago si alguna línea del carrito trae una talla que el producto
+// no tiene configurada, agotada (cantidad 0), o si pide más unidades de las
+// que hay en stock. cantidad null ("sin contar") nunca restringe.
+async function validarTallasCarrito(cart) {
+  for (const item of cart) {
+    if (!item.talla || !item.productId) continue;
+
+    const producto = await CatalogoProductoRepository.findById(item.productId);
+    if (!producto || !Array.isArray(producto.tallas) || producto.tallas.length === 0) continue;
+
+    const talla = producto.tallas.find((t) => t.talla === item.talla);
+    const nombre = item.name || producto.nombre_producto;
+    if (!talla || talla.cantidad === 0) {
+      throw new Error(`La talla ${item.talla} de "${nombre}" ya no está disponible.`);
+    }
+    if (talla.cantidad !== null && talla.cantidad !== undefined && item.quantity > talla.cantidad) {
+      throw new Error(`Solo quedan ${talla.cantidad} unidades de "${nombre}" en talla ${item.talla}.`);
+    }
+  }
+}
 
 class WompiController {
   // 1. El frontend llama esto al entrar al paso de pago: crea el pedido en
@@ -16,6 +40,12 @@ class WompiController {
 
       if (!formData || !cart || cart.length === 0) {
         return res.status(400).json({ error: 'Faltan datos requeridos (formData, cart)' });
+      }
+
+      try {
+        await validarTallasCarrito(cart);
+      } catch (validationError) {
+        return res.status(400).json({ error: validationError.message });
       }
 
       const nombre_producto = cart.map(item => `${item.quantity}x ${item.name}`).join(', ');
@@ -38,6 +68,18 @@ class WompiController {
       const pedido = await PedidoRepository.createPending(pedidoData);
       const referencia_pago = WompiService.buildReference(pedido.id);
       await PedidoRepository.setReferencia(pedido.id, referencia_pago);
+
+      // Detalle estructurado del carrito (producto + talla + cantidad), para
+      // poder descontar el inventario exacto cuando el pago quede aprobado.
+      await PedidoItemRepository.insertMany(
+        pedido.id,
+        cart.map((item) => ({
+          producto_id: item.productId || null,
+          nombre_producto: item.name,
+          talla: item.talla || null,
+          cantidad: item.quantity
+        }))
+      );
 
       // Guarda la dirección de envío asociada a este pedido (si vino en el formulario)
       if (formData.pais && formData.municipio && formData.ciudad && formData.direccion) {
@@ -202,6 +244,14 @@ class WompiController {
       await NotificacionRepository.create(
         `Nueva compra de ${pedido.nombre_cliente} ${pedido.apellido_cliente} — ${pedido.nombre_producto}`
       );
+
+      // El descuento de inventario nunca debe impedir que el pago quede
+      // confirmado (eso es lo que ya cobró Wompi); si falla, solo queda en logs.
+      try {
+        await InventarioService.descontarInventarioPedido(pedido.id);
+      } catch (error) {
+        console.error(`No se pudo descontar el inventario del pedido ${pedido.id}:`, error);
+      }
     }
 
     if (nuevoEstado === 'APPROVED' && !pedido.email_enviado) {

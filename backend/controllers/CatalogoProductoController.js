@@ -4,20 +4,35 @@ const Producto = require('../models/Producto');
 const { imageStorageService } = require('../services/ImageStorageService');
 
 class CatalogoProductoController {
+  // GET /api/catalogo -> público, solo productos activos. Las tallas se
+  // devuelven sin la cantidad exacta en stock (ver Producto.sanitizarTallasPublicas).
   async listar(req, res) {
     try {
-      const productos = await CatalogoProductoRepository.findAll();
-      res.status(200).json(productos);
+      const productos = await CatalogoProductoRepository.findAllActivos();
+      const sanitizados = productos.map((p) => ({ ...p, tallas: Producto.sanitizarTallasPublicas(p.tallas) }));
+      res.status(200).json(sanitizados);
     } catch (error) {
       console.error('Error al listar productos del catálogo:', error);
       res.status(500).json({ error: 'Error al obtener los productos' });
     }
   }
 
+  // GET /api/catalogo/admin -> protegida, incluye suspendidos (panel Admin)
+  async listarAdmin(req, res) {
+    try {
+      const productos = await CatalogoProductoRepository.findAll();
+      res.status(200).json(productos);
+    } catch (error) {
+      console.error('Error al listar productos del catálogo (admin):', error);
+      res.status(500).json({ error: 'Error al obtener los productos' });
+    }
+  }
+
   async crear(req, res) {
     try {
-      const { nombre_lanzamiento, nombre_producto, precio } = req.body;
-      Producto.validate({ nombre_lanzamiento, nombre_producto, precio });
+      const { nombre_lanzamiento, nombre_producto, precio, descripcion, detalle, seccion_id } = req.body;
+      const tallas = Producto.parseTallas(req.body.tallas);
+      Producto.validate({ nombre_lanzamiento, nombre_producto, precio, detalle });
 
       const archivos = req.files || [];
       const subidas = [];
@@ -31,7 +46,10 @@ class CatalogoProductoController {
       const imagen = subidas.length > 0 ? subidas[0].url : null;
       const imagen_public_id = subidas.length > 0 ? subidas[0].publicId : null;
 
-      const producto = await CatalogoProductoRepository.create({ nombre_lanzamiento, nombre_producto, precio, imagen, imagen_public_id });
+      const producto = await CatalogoProductoRepository.create({
+        nombre_lanzamiento, nombre_producto, precio, imagen, imagen_public_id,
+        descripcion, detalle, tallas, seccion_id: seccion_id || null
+      });
 
       if (subidas.length > 0) {
         await CatalogoProductoImagenRepository.insertMany(producto.id, subidas.map((s) => ({ url: s.url, publicId: s.publicId })));
@@ -48,8 +66,9 @@ class CatalogoProductoController {
   async actualizar(req, res) {
     try {
       const { id } = req.params;
-      const { nombre_lanzamiento, nombre_producto, precio, imagenes_conservar } = req.body;
-      Producto.validate({ nombre_lanzamiento, nombre_producto, precio });
+      const { nombre_lanzamiento, nombre_producto, precio, imagenes_conservar, descripcion, detalle, seccion_id } = req.body;
+      const tallas = Producto.parseTallas(req.body.tallas);
+      Producto.validate({ nombre_lanzamiento, nombre_producto, precio, detalle });
 
       const existente = await CatalogoProductoRepository.findById(id);
       if (!existente) {
@@ -117,7 +136,10 @@ class CatalogoProductoController {
         await CatalogoProductoImagenRepository.insertMany(id, subidas.map((s) => ({ url: s.url, publicId: s.publicId })));
       }
 
-      await CatalogoProductoRepository.update(id, { nombre_lanzamiento, nombre_producto, precio, imagen, imagen_public_id });
+      await CatalogoProductoRepository.update(id, {
+        nombre_lanzamiento, nombre_producto, precio, imagen, imagen_public_id,
+        descripcion, detalle, tallas, seccion_id: seccion_id || null
+      });
       const producto = await CatalogoProductoRepository.findById(id);
       res.status(200).json(producto);
     } catch (error) {

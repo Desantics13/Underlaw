@@ -56,7 +56,11 @@ class LanzamientoService {
       nombre_producto: lanzamiento.nombre_producto,
       precio: lanzamiento.precio,
       imagen: imagenes[0] ? imagenes[0].url : null,
-      imagen_public_id: imagenes[0] ? imagenes[0].publicId : null
+      imagen_public_id: imagenes[0] ? imagenes[0].publicId : null,
+      descripcion: lanzamiento.descripcion,
+      detalle: lanzamiento.detalle,
+      tallas: lanzamiento.tallas,
+      seccion_id: lanzamiento.seccion_id
     });
 
     if (imagenes.length > 0) {

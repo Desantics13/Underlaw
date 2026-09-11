@@ -2,13 +2,21 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Pencil, PauseCircle, PlayCircle, Trash2, X, ImagePlus, Package } from 'lucide-react';
 import ProductImageCarousel from './ProductImageCarousel';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+import TallasEditor from './TallasEditor';
+import { adminFetch, API_URL } from '../utils/adminApi';
 
 const ESTADO_STYLES = {
   activo: { bg: 'rgba(16,185,129,0.1)', color: '#10b981', label: 'Activo' },
   suspendido: { bg: 'rgba(245,158,11,0.1)', color: '#f59e0b', label: 'Suspendido' }
 };
+
+const DETALLE_MAX = 120;
+const TALLAS_DEFAULT = [
+  { talla: 'S', cantidad: null },
+  { talla: 'M', cantidad: null },
+  { talla: 'L', cantidad: null },
+  { talla: 'XL', cantidad: null }
+];
 
 // Sugiere el siguiente nombre de lanzamiento (Lanzamiento 1, 2, 3...) a partir de los existentes
 const sugerirNombreLanzamiento = (productos) => {
@@ -30,6 +38,11 @@ const ProductosPanel = () => {
   const [nombreLanzamiento, setNombreLanzamiento] = useState('');
   const [nombreProducto, setNombreProducto] = useState('');
   const [precio, setPrecio] = useState('');
+  const [detalle, setDetalle] = useState('');
+  const [descripcion, setDescripcion] = useState('');
+  const [tallas, setTallas] = useState(TALLAS_DEFAULT);
+  const [seccionId, setSeccionId] = useState('');
+  const [secciones, setSecciones] = useState([]);
   // Galería en edición dentro del formulario: lista ordenada de { key, kind: 'existing'|'new', url, file? }.
   // "existing" son imágenes que el producto ya tenía (se conservan salvo que se quiten con la X);
   // "new" son archivos recién seleccionados (se suben al guardar). Ambas se pueden quitar individualmente.
@@ -42,15 +55,19 @@ const ProductosPanel = () => {
 
   const cargarProductos = () => {
     setLoading(true);
-    fetch(`${API_URL}/api/catalogo`)
+    adminFetch('/api/catalogo/admin')
       .then(res => res.json())
-      .then(data => setProductos(data))
+      .then(data => setProductos(Array.isArray(data) ? data : []))
       .catch(err => console.error('Error al obtener el catálogo:', err))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     cargarProductos();
+    fetch(`${API_URL}/api/secciones`)
+      .then(res => res.json())
+      .then(data => setSecciones(Array.isArray(data) ? data : []))
+      .catch(err => console.error('Error al obtener las secciones:', err));
   }, []);
 
   const abrirCrear = () => {
@@ -58,6 +75,10 @@ const ProductosPanel = () => {
     setNombreLanzamiento(sugerirNombreLanzamiento(productos));
     setNombreProducto('');
     setPrecio('');
+    setDetalle('');
+    setDescripcion('');
+    setTallas(TALLAS_DEFAULT);
+    setSeccionId('');
     setImagenes([]);
     setFormError('');
     setShowForm(true);
@@ -68,6 +89,10 @@ const ProductosPanel = () => {
     setNombreLanzamiento(producto.nombre_lanzamiento);
     setNombreProducto(producto.nombre_producto);
     setPrecio(String(producto.precio));
+    setDetalle(producto.detalle || '');
+    setDescripcion(producto.descripcion || '');
+    setTallas(producto.tallas && producto.tallas.length > 0 ? producto.tallas : TALLAS_DEFAULT);
+    setSeccionId(producto.seccion_id ? String(producto.seccion_id) : '');
     const existentes = producto.imagenes && producto.imagenes.length > 0 ? producto.imagenes : (producto.imagen ? [producto.imagen] : []);
     setImagenes(existentes.map((url) => ({ key: url, kind: 'existing', url })));
     setFormError('');
@@ -122,10 +147,19 @@ const ProductosPanel = () => {
       return;
     }
 
+    if (detalle.length > DETALLE_MAX) {
+      setFormError(`El detalle no puede superar los ${DETALLE_MAX} caracteres.`);
+      return;
+    }
+
     const body = new FormData();
     body.append('nombre_lanzamiento', nombreLanzamiento.trim());
     body.append('nombre_producto', nombreProducto.trim());
     body.append('precio', precio);
+    body.append('detalle', detalle.trim());
+    body.append('descripcion', descripcion);
+    body.append('tallas', JSON.stringify(tallas));
+    body.append('seccion_id', seccionId);
     if (editingProducto) {
       const aConservar = imagenes.filter((img) => img.kind === 'existing').map((img) => img.url);
       body.append('imagenes_conservar', JSON.stringify(aConservar));
@@ -134,9 +168,9 @@ const ProductosPanel = () => {
 
     setSaving(true);
     try {
-      const url = editingProducto ? `${API_URL}/api/catalogo/${editingProducto.id}` : `${API_URL}/api/catalogo`;
+      const url = editingProducto ? `/api/catalogo/${editingProducto.id}` : '/api/catalogo';
       const method = editingProducto ? 'PUT' : 'POST';
-      const res = await fetch(url, { method, body });
+      const res = await adminFetch(url, { method, body });
       const data = await res.json();
 
       if (!res.ok) {
@@ -160,7 +194,7 @@ const ProductosPanel = () => {
   const toggleEstado = async (producto) => {
     const nuevoEstado = producto.estado === 'activo' ? 'suspendido' : 'activo';
     try {
-      const res = await fetch(`${API_URL}/api/catalogo/${producto.id}/estado`, {
+      const res = await adminFetch(`/api/catalogo/${producto.id}/estado`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ estado: nuevoEstado })
@@ -177,7 +211,7 @@ const ProductosPanel = () => {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const res = await fetch(`${API_URL}/api/catalogo/${deleteTarget.id}`, { method: 'DELETE' });
+      const res = await adminFetch(`/api/catalogo/${deleteTarget.id}`, { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || 'No se pudo eliminar el producto');
@@ -309,6 +343,51 @@ const ProductosPanel = () => {
                     onChange={(e) => setPrecio(e.target.value)}
                     style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: 'white', padding: '0.75rem 1rem', fontSize: '0.95rem' }}
                   />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Detalle (frase corta)</span>
+                    <span>{detalle.length}/{DETALLE_MAX}</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Algodón 240gsm, corte oversized"
+                    value={detalle}
+                    maxLength={DETALLE_MAX}
+                    onChange={(e) => setDetalle(e.target.value)}
+                    style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: 'white', padding: '0.75rem 1rem', fontSize: '0.95rem' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>Descripción</label>
+                  <textarea
+                    value={descripcion}
+                    onChange={(e) => setDescripcion(e.target.value)}
+                    rows={4}
+                    placeholder="Descripción completa del producto"
+                    style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: 'white', padding: '0.75rem 1rem', fontSize: '0.9rem', fontFamily: 'inherit', resize: 'vertical' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>Tallas</label>
+                  <TallasEditor tallas={tallas} onChange={setTallas} />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>Sección (opcional)</label>
+                  <select
+                    value={seccionId}
+                    onChange={(e) => setSeccionId(e.target.value)}
+                    style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: 'white', padding: '0.75rem 1rem', fontSize: '0.95rem' }}
+                  >
+                    <option value="">Sin sección</option>
+                    {secciones.map((s) => (
+                      <option key={s.id} value={s.id}>{s.nombre}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>

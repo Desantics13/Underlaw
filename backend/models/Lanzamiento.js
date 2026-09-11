@@ -4,6 +4,8 @@
 // programada (nombre, producto, precio, imágenes y fecha/hora) que controla la
 // sección destacada del Home. Cuando la fecha se cumple, el servidor crea el
 // producto real en "catalogo_productos" (ver services/LanzamientoService.js).
+const DETALLE_MAX = 120;
+
 class Lanzamiento {
   static validate(data, { requiereFuturo = false } = {}) {
     if (!data.nombre_lanzamiento || !String(data.nombre_lanzamiento).trim()) {
@@ -21,6 +23,9 @@ class Lanzamiento {
     }
     if (requiereFuturo && fecha.getTime() <= Date.now()) {
       throw new Error('La fecha y hora de lanzamiento debe estar en el futuro.');
+    }
+    if (data.detalle !== undefined && data.detalle !== null && String(data.detalle).length > DETALLE_MAX) {
+      throw new Error(`El detalle no puede superar los ${DETALLE_MAX} caracteres.`);
     }
   }
 }

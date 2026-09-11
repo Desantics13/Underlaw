@@ -4,13 +4,25 @@ import { ShoppingCart, X, Plus, Minus } from 'lucide-react';
 import { jsPDF } from "jspdf";
 import ProductImageCarousel from '../components/ProductImageCarousel';
 import QuickViewModal from '../components/QuickViewModal';
+import { API_URL } from '../utils/adminApi';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const WOMPI_WIDGET_SCRIPT_ID = 'wompi-widget-script';
+
+// "Camisetas Oversized" -> "camisetas-oversized" (para el filtro ?seccion=... en la URL)
+const ACENTOS = { á: 'a', é: 'e', í: 'i', ó: 'o', ú: 'u', ü: 'u', ñ: 'n' };
+const slugify = (str) =>
+  String(str || '')
+    .toLowerCase()
+    .split('').map((ch) => ACENTOS[ch] || ch).join('')
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 
 const Products = () => {
   const [productsList, setProductsList] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
+  const [secciones, setSecciones] = useState([]);
+  const [seccionActiva, setSeccionActiva] = useState(() => new URLSearchParams(window.location.search).get('seccion') || null);
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [quickViewProduct, setQuickViewProduct] = useState(null);
@@ -47,13 +59,42 @@ const Products = () => {
           price: Number(p.precio),
           image: p.imagen || null,
           images: Array.isArray(p.imagenes) && p.imagenes.length > 0 ? p.imagenes : (p.imagen ? [p.imagen] : []),
-          estado: p.estado
+          estado: p.estado,
+          detalle: p.detalle || '',
+          descripcion: p.descripcion || '',
+          tallas: Array.isArray(p.tallas) ? p.tallas : [],
+          seccionId: p.seccion_id || null
         }));
         setProductsList(formatted);
       })
       .catch(err => console.error('Error al obtener el catálogo:', err))
       .finally(() => setLoadingProducts(false));
+
+    fetch(`${API_URL}/api/secciones`)
+      .then(res => res.json())
+      .then(data => setSecciones(Array.isArray(data) ? data : []))
+      .catch(err => console.error('Error al obtener las secciones:', err));
   }, []);
+
+  // Secciones que de verdad se muestran como pestaña: solo las que tienen al
+  // menos un producto activo, en el orden ya definido por el Admin.
+  const seccionesConProductos = secciones.filter((s) =>
+    productsList.some((p) => p.seccionId === s.id && p.estado !== 'suspendido')
+  );
+
+  const cambiarSeccion = (slugONull) => {
+    setSeccionActiva(slugONull);
+    const params = new URLSearchParams(window.location.search);
+    if (slugONull) params.set('seccion', slugONull);
+    else params.delete('seccion');
+    const qs = params.toString();
+    window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+  };
+
+  const seccionActivaObj = seccionActiva ? seccionesConProductos.find((s) => slugify(s.nombre) === seccionActiva) : null;
+  const productosVisibles = seccionActivaObj
+    ? productsList.filter((p) => p.seccionId === seccionActivaObj.id)
+    : productsList;
 
   // Abre la vista rápida del producto indicado en ?producto=<id> una vez que el
   // catálogo ya cargó (mismo patrón que la lectura de wompi_ref de más abajo).
@@ -117,6 +158,14 @@ const Products = () => {
     verificar();
   }, []);
 
+  // Máximo que se puede comprar de una vez en esa talla (10 por defecto, o el
+  // stock real si es menor). Sin talla (producto sin tallas configuradas) no hay tope.
+  const maxCompraDe = (item) => {
+    if (!item.talla || !Array.isArray(item.tallas)) return Infinity;
+    const t = item.tallas.find((x) => x.talla === item.talla);
+    return t ? t.max_compra : Infinity;
+  };
+
   // talla es opcional: se usa para diferenciar líneas del carrito del mismo
   // producto en tallas distintas (cada combinación producto+talla es su propia
   // línea; misma talla del mismo producto acumula cantidad).
@@ -125,9 +174,11 @@ const Products = () => {
     setCart(prev => {
       const existing = prev.find(item => item.id === lineId);
       if (existing) {
-        return prev.map(item => item.id === lineId ? { ...item, quantity: item.quantity + quantity } : item);
+        const tope = maxCompraDe(existing);
+        return prev.map(item => item.id === lineId ? { ...item, quantity: Math.min(tope, item.quantity + quantity) } : item);
       }
-      return [...prev, { ...product, id: lineId, productId: product.id, talla, quantity }];
+      const nuevo = { ...product, id: lineId, productId: product.id, talla, quantity };
+      return [...prev, { ...nuevo, quantity: Math.min(maxCompraDe(nuevo), quantity) }];
     });
     setIsCartOpen(true);
   };
@@ -135,7 +186,7 @@ const Products = () => {
   const updateQuantity = (id, delta) => {
     setCart(prev => prev.map(item => {
       if (item.id === id) {
-        const newQty = Math.max(0, item.quantity + delta);
+        const newQty = Math.max(0, Math.min(maxCompraDe(item), item.quantity + delta));
         return newQty === 0 ? null : { ...item, quantity: newQty };
       }
       return item;
@@ -339,12 +390,39 @@ const Products = () => {
           </button>
         </header>
 
+        {seccionesConProductos.length > 0 && (
+          <div className="seccion-tabs" role="tablist" aria-label="Secciones de la colección">
+            <button
+              role="tab"
+              aria-selected={!seccionActivaObj}
+              onClick={() => cambiarSeccion(null)}
+              className={`seccion-tab ${!seccionActivaObj ? 'seccion-tab-activa' : ''}`}
+            >
+              Todo
+            </button>
+            {seccionesConProductos.map((s) => {
+              const slug = slugify(s.nombre);
+              return (
+                <button
+                  key={s.id}
+                  role="tab"
+                  aria-selected={seccionActivaObj?.id === s.id}
+                  onClick={() => cambiarSeccion(slug)}
+                  className={`seccion-tab ${seccionActivaObj?.id === s.id ? 'seccion-tab-activa' : ''}`}
+                >
+                  {s.nombre}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         <div className="products-grid">
           {loadingProducts ? (
             <p style={{ color: 'var(--text-muted)' }}>Cargando colección...</p>
-          ) : productsList.length === 0 ? (
+          ) : productosVisibles.length === 0 ? (
             <p style={{ color: 'var(--text-muted)' }}>Aún no hay productos disponibles. Vuelve pronto.</p>
-          ) : productsList.map((product, index) => {
+          ) : productosVisibles.map((product, index) => {
             const disponible = product.estado !== 'suspendido';
             return (
             <motion.div
@@ -433,7 +511,11 @@ const Products = () => {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                               <button onClick={() => updateQuantity(item.id, -1)} style={{ padding: '4px', border: '1px solid var(--border)', color: 'white' }}><Minus size={14} /></button>
                               <span style={{ color: 'white' }}>{item.quantity}</span>
-                              <button onClick={() => updateQuantity(item.id, 1)} style={{ padding: '4px', border: '1px solid var(--border)', color: 'white' }}><Plus size={14} /></button>
+                              <button
+                                onClick={() => updateQuantity(item.id, 1)}
+                                disabled={item.quantity >= maxCompraDe(item)}
+                                style={{ padding: '4px', border: '1px solid var(--border)', color: 'white', opacity: item.quantity >= maxCompraDe(item) ? 0.4 : 1, cursor: item.quantity >= maxCompraDe(item) ? 'not-allowed' : 'pointer' }}
+                              ><Plus size={14} /></button>
                             </div>
                           </div>
                         </div>
@@ -607,6 +689,33 @@ const Products = () => {
         .collection-h1 {
           font-size: 4rem;
         }
+        .seccion-tabs {
+          display: flex;
+          gap: 0.5rem;
+          margin: -3rem 0 3rem;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+        }
+        .seccion-tabs::-webkit-scrollbar { display: none; }
+        .seccion-tab {
+          flex-shrink: 0;
+          font-family: var(--font-serif);
+          font-style: italic;
+          background: transparent;
+          border: 1px solid var(--border);
+          color: var(--text-muted);
+          padding: 0.6rem 1.4rem;
+          cursor: pointer;
+          font-size: 0.95rem;
+          white-space: nowrap;
+          transition: var(--transition);
+        }
+        .seccion-tab-activa {
+          background: white;
+          color: black;
+          border-color: white;
+        }
         @media (max-width: 768px) {
           .products-grid {
             grid-template-columns: 1fr;
@@ -619,6 +728,9 @@ const Products = () => {
           }
           .collection-h1 {
             font-size: 2.5rem !important;
+          }
+          .seccion-tabs {
+            margin: -1.5rem 0 2.5rem;
           }
         }
       `}</style>

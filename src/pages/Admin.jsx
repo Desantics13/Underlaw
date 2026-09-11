@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart3, LogOut, Bell, Settings, CheckCircle, Clock, User, X, Eye, LayoutDashboard, Rocket } from 'lucide-react';
+import { BarChart3, LogOut, Bell, Settings, CheckCircle, Clock, User, X, Eye, LayoutDashboard, Rocket, LayoutGrid, Boxes } from 'lucide-react';
 import ProductosPanel from '../components/ProductosPanel';
 import LanzamientosPanel from '../components/LanzamientosPanel';
-
-const ADMIN_PASSWORD = 'admin';
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+import SeccionesPanel from '../components/SeccionesPanel';
+import InventarioPanel from '../components/InventarioPanel';
+import { API_URL, adminFetch, getAdminToken, setAdminToken, clearAdminToken, onAdminSessionExpired } from '../utils/adminApi';
 
 const ESTADO_LABELS = {
   APPROVED: 'Aprobado',
@@ -24,16 +24,17 @@ const ESTADO_COLORS = {
 const PEDIDOS_POR_PAGINA = 8;
 
 const Admin = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => !!getAdminToken());
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
   const [pedidos, setPedidos] = useState([]);
   const [notificaciones, setNotificaciones] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [selectedPedido, setSelectedPedido] = useState(null);
   const [selectedDireccion, setSelectedDireccion] = useState(null);
   const [paginaActual, setPaginaActual] = useState(1);
-  const [activeView, setActiveView] = useState('pedidos'); // 'pedidos' | 'productos' | 'lanzamientos'
+  const [activeView, setActiveView] = useState('pedidos'); // 'pedidos' | 'productos' | 'lanzamientos' | 'secciones'
   const notifRef = useRef(null);
 
   useEffect(() => {
@@ -46,10 +47,14 @@ const Admin = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Si el backend responde 401 en cualquier llamada del Admin (token vencido
+  // o ausente), volvemos a la pantalla de login.
+  useEffect(() => onAdminSessionExpired(() => setIsAuthenticated(false)), []);
+
   const cargarNotificaciones = () => {
-    fetch(`${API_URL}/api/notificaciones`)
+    adminFetch('/api/notificaciones')
       .then(res => res.json())
-      .then(data => setNotificaciones(data))
+      .then(data => setNotificaciones(Array.isArray(data) ? data : []))
       .catch(err => console.error('Error al obtener notificaciones:', err));
   };
 
@@ -61,9 +66,10 @@ const Admin = () => {
     const interval = setInterval(cargarNotificaciones, 20000);
 
     // Obtener pedidos del Backend real
-    fetch(`${API_URL}/api/pedidos`)
+    adminFetch('/api/pedidos')
       .then(res => res.json())
       .then(data => {
+        if (!Array.isArray(data)) return;
         const formattedData = data.map(p => ({
           id: p.id,
           nombre_cliente: p.nombre_cliente,
@@ -90,29 +96,44 @@ const Admin = () => {
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (password === ADMIN_PASSWORD) {
+    setLoginError('');
+    setLoggingIn(true);
+    try {
+      const res = await fetch(`${API_URL}/api/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Contraseña incorrecta. Intenta de nuevo.');
+      }
+      setAdminToken(data.token);
       setIsAuthenticated(true);
-      setLoginError('');
-    } else {
-      setLoginError('Contraseña incorrecta. Intenta de nuevo.');
+      setPassword('');
+    } catch (error) {
+      setLoginError(error.message);
+    } finally {
+      setLoggingIn(false);
     }
   };
 
   const handleLogout = () => {
+    clearAdminToken();
     setIsAuthenticated(false);
     setPassword('');
   };
 
   const markAllRead = () => {
-    fetch(`${API_URL}/api/notificaciones/marcar-leidas`, { method: 'PATCH' })
+    adminFetch('/api/notificaciones/marcar-leidas', { method: 'PATCH' })
       .then(() => setNotificaciones(prev => prev.map(n => ({ ...n, leida: 1 }))))
       .catch(err => console.error('Error al marcar notificaciones como leídas:', err));
   };
 
   const clearNotifications = () => {
-    fetch(`${API_URL}/api/notificaciones`, { method: 'DELETE' })
+    adminFetch('/api/notificaciones', { method: 'DELETE' })
       .then(() => {
         setNotificaciones([]);
         setShowNotifications(false);
@@ -135,7 +156,7 @@ const Admin = () => {
           animate={{ opacity: 1, y: 0 }}
           style={{ width: '100%', maxWidth: '400px', padding: 'clamp(2rem, 5vw, 3rem)', border: '1px solid rgba(255,255,255,0.08)', background: '#0a0a0a', margin: '0 1.25rem' }}
         >
-          <h1 className="font-serif italic" style={{ fontSize: '2.5rem', textAlign: 'center', marginBottom: '0.5rem', color: '#fff' }}>Under Law</h1>
+          <h1 className="font-serif italic" style={{ fontSize: '2.5rem', textAlign: 'center', marginBottom: '0.5rem', color: '#fff' }}>UnderLaw</h1>
           <p style={{ textAlign: 'center', color: '#71717a', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: '3rem' }}>Panel Administrativo</p>
 
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -153,8 +174,8 @@ const Admin = () => {
             {loginError && (
               <p style={{ color: '#f43f5e', fontSize: '0.85rem', textAlign: 'center' }}>{loginError}</p>
             )}
-            <button type="submit" className="premium-button" style={{ width: '100%', padding: '1.2rem', marginTop: '1rem' }}>
-              Ingresar
+            <button type="submit" disabled={loggingIn} className="premium-button" style={{ width: '100%', padding: '1.2rem', marginTop: '1rem', opacity: loggingIn ? 0.6 : 1, cursor: loggingIn ? 'not-allowed' : 'pointer' }}>
+              {loggingIn ? 'Ingresando...' : 'Ingresar'}
             </button>
           </form>
         </motion.div>
@@ -233,6 +254,8 @@ const Admin = () => {
               { key: 'pedidos', label: 'Pedidos', Icon: LayoutDashboard },
               { key: 'productos', label: 'Productos', Icon: Settings },
               { key: 'lanzamientos', label: 'Lanzamientos', Icon: Rocket },
+              { key: 'secciones', label: 'Secciones', Icon: LayoutGrid },
+              { key: 'inventario', label: 'Inventario', Icon: Boxes },
             ].map(({ key, label, Icon }) => (
               <button
                 key={key}
@@ -253,6 +276,10 @@ const Admin = () => {
           <ProductosPanel />
         ) : activeView === 'lanzamientos' ? (
           <LanzamientosPanel />
+        ) : activeView === 'secciones' ? (
+          <SeccionesPanel />
+        ) : activeView === 'inventario' ? (
+          <InventarioPanel />
         ) : (
         <>
         {/* Tarjetas de Resumen */}

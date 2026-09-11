@@ -34,12 +34,11 @@ const Navbar = () => {
 
           {/* ── Center: Logo ── */}
           <Link to="/" onClick={closeMobile} style={{ flex: 1, textAlign: 'center', fontSize: isScrolled ? '1.4rem' : '2rem', transition: 'all 0.4s ease', fontFamily: 'var(--font-serif)', fontStyle: 'normal', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
-            Under Law
+            UnderLaw
           </Link>
 
           {/* ── Right: desktop icons ── */}
           <div className="nav-desktop-links" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '1.5rem' }}>
-            <Link to="/admin" style={linkStyle}>Admin</Link>
             <button style={{ color: 'white' }}><Search size={20} strokeWidth={1.5} /></button>
             <Link to="/products" style={{ color: 'white', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <ShoppingCart size={20} strokeWidth={1.5} />
@@ -70,7 +69,6 @@ const Navbar = () => {
           {[
             { to: '/', label: 'Inicio' },
             { to: '/products', label: 'Colección' },
-            { to: '/admin', label: 'Admin' },
           ].map(({ to, label }) => (
             <Link
               key={to}
@@ -92,14 +90,6 @@ const Navbar = () => {
       `}</style>
     </>
   );
-};
-
-const linkStyle = {
-  fontSize: '0.75rem',
-  fontWeight: '500',
-  textTransform: 'uppercase',
-  letterSpacing: '0.15em',
-  color: 'white',
 };
 
 export default Navbar;

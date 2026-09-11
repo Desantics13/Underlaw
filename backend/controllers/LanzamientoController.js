@@ -2,6 +2,7 @@ const LanzamientoRepository = require('../repositories/LanzamientoRepository');
 const LanzamientoInscritoRepository = require('../repositories/LanzamientoInscritoRepository');
 const LanzamientoService = require('../services/LanzamientoService');
 const Lanzamiento = require('../models/Lanzamiento');
+const Producto = require('../models/Producto');
 const { imageStorageService } = require('../services/ImageStorageService');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -29,8 +30,9 @@ class LanzamientoController {
 
   async crear(req, res) {
     try {
-      const { nombre_lanzamiento, nombre_producto, precio, fecha_lanzamiento, activo_en_home } = req.body;
-      Lanzamiento.validate({ nombre_lanzamiento, nombre_producto, precio, fecha_lanzamiento }, { requiereFuturo: true });
+      const { nombre_lanzamiento, nombre_producto, precio, fecha_lanzamiento, activo_en_home, descripcion, detalle, seccion_id } = req.body;
+      const tallas = Producto.parseTallas(req.body.tallas);
+      Lanzamiento.validate({ nombre_lanzamiento, nombre_producto, precio, fecha_lanzamiento, detalle }, { requiereFuturo: true });
 
       const archivos = req.files || [];
       if (archivos.length === 0) {
@@ -50,7 +52,11 @@ class LanzamientoController {
         precio,
         imagenes,
         fecha_lanzamiento: fechaUtc,
-        activo_en_home: activo_en_home === 'true' || activo_en_home === true
+        activo_en_home: activo_en_home === 'true' || activo_en_home === true,
+        descripcion,
+        detalle,
+        tallas,
+        seccion_id: seccion_id || null
       });
 
       res.status(201).json(lanzamiento);
@@ -63,7 +69,8 @@ class LanzamientoController {
   async actualizar(req, res) {
     try {
       const { id } = req.params;
-      const { nombre_lanzamiento, nombre_producto, precio, fecha_lanzamiento, imagenes_conservar } = req.body;
+      const { nombre_lanzamiento, nombre_producto, precio, fecha_lanzamiento, imagenes_conservar, descripcion, detalle, seccion_id } = req.body;
+      const tallas = Producto.parseTallas(req.body.tallas);
 
       const existente = await LanzamientoRepository.findById(id);
       if (!existente) {
@@ -73,7 +80,7 @@ class LanzamientoController {
         return res.status(409).json({ error: 'Este lanzamiento ya se lanzó y no se puede editar.' });
       }
 
-      Lanzamiento.validate({ nombre_lanzamiento, nombre_producto, precio, fecha_lanzamiento });
+      Lanzamiento.validate({ nombre_lanzamiento, nombre_producto, precio, fecha_lanzamiento, detalle });
 
       // Galería: se conservan las URLs que manda el formulario y se suben los
       // archivos nuevos; el resto de imágenes previas se borran de Cloudinary.
@@ -108,7 +115,11 @@ class LanzamientoController {
         nombre_producto: nombre_producto.trim(),
         precio,
         imagenes: imagenesFinales,
-        fecha_lanzamiento: isoToMysqlUtc(fecha_lanzamiento)
+        fecha_lanzamiento: isoToMysqlUtc(fecha_lanzamiento),
+        descripcion,
+        detalle,
+        tallas,
+        seccion_id: seccion_id || null
       });
 
       res.status(200).json(lanzamiento);

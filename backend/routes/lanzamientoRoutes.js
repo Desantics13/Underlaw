@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const LanzamientoController = require('../controllers/LanzamientoController');
 const { upload } = require('../services/ImageStorageService');
+const { requireAdminAuth } = require('../middleware/adminAuth');
 
 // Igual que en catalogoRoutes: responde en JSON si multer rechaza una imagen
 // (tipo/tamaño), en vez de dejarlo caer en el manejador de errores genérico.
@@ -20,16 +21,16 @@ router.get('/home', LanzamientoController.home.bind(LanzamientoController));
 // POST /api/lanzamientos/:id/inscritos -> inscribe un correo al lanzamiento
 router.post('/:id/inscritos', LanzamientoController.inscribir.bind(LanzamientoController));
 
-// ── Admin ──
+// ── Admin (protegidas) ──
 // GET /api/lanzamientos -> lista todos los lanzamientos
-router.get('/', LanzamientoController.listar.bind(LanzamientoController));
+router.get('/', requireAdminAuth, LanzamientoController.listar.bind(LanzamientoController));
 // POST /api/lanzamientos -> crea un lanzamiento (multipart, campo "imagenes", hasta 8)
-router.post('/', handleUpload, LanzamientoController.crear.bind(LanzamientoController));
+router.post('/', requireAdminAuth, handleUpload, LanzamientoController.crear.bind(LanzamientoController));
 // PUT /api/lanzamientos/:id -> edita un lanzamiento que sigue "programado"
-router.put('/:id', handleUpload, LanzamientoController.actualizar.bind(LanzamientoController));
+router.put('/:id', requireAdminAuth, handleUpload, LanzamientoController.actualizar.bind(LanzamientoController));
 // PATCH /api/lanzamientos/:id/activo -> activa/desactiva la muestra en el Home
-router.patch('/:id/activo', LanzamientoController.cambiarActivo.bind(LanzamientoController));
+router.patch('/:id/activo', requireAdminAuth, LanzamientoController.cambiarActivo.bind(LanzamientoController));
 // DELETE /api/lanzamientos/:id -> elimina un lanzamiento
-router.delete('/:id', LanzamientoController.eliminar.bind(LanzamientoController));
+router.delete('/:id', requireAdminAuth, LanzamientoController.eliminar.bind(LanzamientoController));
 
 module.exports = router;

@@ -3,7 +3,12 @@ import { motion } from 'framer-motion';
 import { X, Plus, Minus } from 'lucide-react';
 import ProductImageCarousel from './ProductImageCarousel';
 
-const TALLAS_DISPONIBLES = ['S', 'M', 'L', 'XL'];
+const TALLAS_DEFAULT = [
+  { talla: 'S', disponible: true, max_compra: 10 },
+  { talla: 'M', disponible: true, max_compra: 10 },
+  { talla: 'L', disponible: true, max_compra: 10 },
+  { talla: 'XL', disponible: true, max_compra: 10 }
+];
 
 // Modal de vista rápida de producto (dos columnas, inspirado en Adidas):
 // imagen con carrusel a la izquierda, y a la derecha título, precio, talla,
@@ -21,10 +26,20 @@ const QuickViewModal = ({ product, onClose, onAddToCart }) => {
   }, [onClose]);
 
   const images = product.images && product.images.length > 0 ? product.images : (product.image ? [product.image] : []);
+  const tallas = product.tallas && product.tallas.length > 0 ? product.tallas : TALLAS_DEFAULT;
+  const agotado = tallas.every((t) => !t.disponible);
+  const tallaSeleccionada = tallas.find((t) => t.talla === talla);
+  const maxCompra = tallaSeleccionada ? tallaSeleccionada.max_compra : 10;
+
+  const elegirTalla = (t, disponible) => {
+    if (!disponible) return;
+    setTalla(t.talla);
+    setQuantity((q) => Math.min(q, t.max_compra));
+  };
 
   const handleAdd = () => {
-    if (!talla) return;
-    onAddToCart(product, quantity, talla);
+    if (!talla || agotado) return;
+    onAddToCart(product, Math.min(quantity, maxCompra), talla);
     onClose();
   };
 
@@ -63,31 +78,41 @@ const QuickViewModal = ({ product, onClose, onAddToCart }) => {
 
           <div style={{ display: 'flex', flexDirection: 'column', padding: '2.5rem' }}>
             <h2 className="font-serif italic" style={{ fontSize: '1.8rem', marginBottom: '0.5rem' }}>{product.name}</h2>
+            {product.detalle && (
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>{product.detalle}</p>
+            )}
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '2rem' }}>${product.price.toLocaleString('es-CO')} COP</p>
 
             <div style={{ marginBottom: '2rem' }}>
               <p style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>Talla</p>
-              <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                {TALLAS_DISPONIBLES.map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setTalla(t)}
-                    aria-pressed={talla === t}
-                    style={{
-                      minWidth: '2.75rem',
-                      padding: '0.6rem',
-                      border: `1px solid ${talla === t ? 'white' : 'var(--border)'}`,
-                      background: talla === t ? 'white' : 'transparent',
-                      color: talla === t ? 'black' : 'white',
-                      cursor: 'pointer',
-                      fontSize: '0.85rem'
-                    }}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
+              {agotado ? (
+                <p style={{ fontSize: '0.85rem', color: '#f87171' }}>Agotado</p>
+              ) : (
+                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                  {tallas.map((item) => (
+                    <button
+                      key={item.talla}
+                      type="button"
+                      onClick={() => elegirTalla(item, item.disponible)}
+                      disabled={!item.disponible}
+                      aria-pressed={talla === item.talla}
+                      style={{
+                        minWidth: '2.75rem',
+                        padding: '0.6rem',
+                        border: `1px solid ${talla === item.talla ? 'white' : 'var(--border)'}`,
+                        background: talla === item.talla ? 'white' : 'transparent',
+                        color: !item.disponible ? 'var(--text-muted)' : (talla === item.talla ? 'black' : 'white'),
+                        cursor: item.disponible ? 'pointer' : 'not-allowed',
+                        textDecoration: item.disponible ? 'none' : 'line-through',
+                        opacity: item.disponible ? 1 : 0.5,
+                        fontSize: '0.85rem'
+                      }}
+                    >
+                      {item.talla}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div style={{ marginBottom: '2rem' }}>
@@ -104,27 +129,39 @@ const QuickViewModal = ({ product, onClose, onAddToCart }) => {
                 <span style={{ minWidth: '1.5rem', textAlign: 'center', color: 'white' }}>{quantity}</span>
                 <button
                   type="button"
-                  onClick={() => setQuantity((q) => q + 1)}
+                  onClick={() => setQuantity((q) => Math.min(maxCompra, q + 1))}
+                  disabled={quantity >= maxCompra}
                   aria-label="Aumentar cantidad"
-                  style={{ padding: '0.5rem', border: '1px solid var(--border)', color: 'white', background: 'transparent', cursor: 'pointer' }}
+                  style={{ padding: '0.5rem', border: '1px solid var(--border)', color: 'white', background: 'transparent', cursor: quantity >= maxCompra ? 'not-allowed' : 'pointer', opacity: quantity >= maxCompra ? 0.4 : 1 }}
                 >
                   <Plus size={14} />
                 </button>
               </div>
+              {talla && quantity >= maxCompra && (
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                  Máximo {maxCompra} unidades por compra en esta talla.
+                </p>
+              )}
             </div>
 
-            {!talla && (
+            {product.descripcion && (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '2rem', whiteSpace: 'pre-line' }}>
+                {product.descripcion}
+              </p>
+            )}
+
+            {!agotado && !talla && (
               <p style={{ fontSize: '0.75rem', color: '#f87171', marginBottom: '1rem' }}>Selecciona una talla para continuar.</p>
             )}
 
             <button
               type="button"
               onClick={handleAdd}
-              disabled={!talla}
+              disabled={!talla || agotado}
               className="premium-button"
-              style={{ width: '100%', padding: '1.1rem', marginTop: 'auto', opacity: talla ? 1 : 0.5, cursor: talla ? 'pointer' : 'not-allowed' }}
+              style={{ width: '100%', padding: '1.1rem', marginTop: 'auto', opacity: (talla && !agotado) ? 1 : 0.5, cursor: (talla && !agotado) ? 'pointer' : 'not-allowed' }}
             >
-              Añadir al Carrito
+              {agotado ? 'Agotado' : 'Añadir al Carrito'}
             </button>
           </div>
         </div>
