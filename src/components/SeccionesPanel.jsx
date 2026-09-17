@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Pencil, Trash2, X, LayoutGrid, ArrowUp, ArrowDown } from 'lucide-react';
+import { ADMIN_STYLES } from './adminStyles';
 import { adminFetch } from '../utils/adminApi';
 
 // Panel de administración de "Secciones de la Colección": crear, renombrar,
@@ -122,42 +123,33 @@ const SeccionesPanel = () => {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <h3 style={{ fontSize: '1.25rem', color: '#fff', fontFamily: 'var(--font-serif)', fontStyle: 'italic' }}>Secciones de la Colección</h3>
-        <button
-          onClick={abrirCrear}
-          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#3b82f6', color: 'white', padding: '0.75rem 1.25rem', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500 }}
-        >
-          <Plus size={16} /> Nueva Sección
+      <div className="admin-content-head">
+        <div>
+          <h1 className="admin-content-title">Secciones de la colección</h1>
+          <p className="admin-content-sub">Aparecen como pestañas en la Colección, en el orden de esta lista, y solo si tienen al menos un producto activo.</p>
+        </div>
+        <button onClick={abrirCrear} className="admin-btn-create">
+          <Plus size={15} /> Nueva sección
         </button>
       </div>
-      <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '2rem', maxWidth: '640px' }}>
-        Las secciones aparecen como pestañas en /products (junto con "Todo"), en el orden de esta lista, y solo si tienen al menos un producto activo.
-      </p>
 
       {loading ? (
-        <p style={{ color: '#64748b', textAlign: 'center', padding: '3rem 0' }}>Cargando secciones...</p>
+        <p style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '3rem 0' }}>Cargando secciones...</p>
       ) : secciones.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '4rem 0', color: '#64748b' }}>
-          <LayoutGrid size={32} style={{ marginBottom: '1rem', opacity: 0.5 }} />
+        <div className="admin-empty">
+          <LayoutGrid size={32} />
           <p>Aún no has creado ninguna sección.</p>
         </div>
       ) : (
-        <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', overflow: 'hidden' }}>
+        <div className="admin-list">
           {secciones.map((s, index) => (
-            <div
-              key={s.id}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem',
-                borderBottom: index < secciones.length - 1 ? '1px solid #1e293b' : 'none'
-              }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div key={s.id} className="admin-list-row">
+              <span style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
                 <button
                   onClick={() => moverSeccion(index, -1)}
                   disabled={index === 0 || reordenando}
                   aria-label="Subir"
-                  style={{ background: 'transparent', border: 'none', color: index === 0 ? '#334155' : '#94a3b8', cursor: index === 0 ? 'not-allowed' : 'pointer', padding: '2px' }}
+                  style={{ background: 'transparent', border: 'none', color: index === 0 ? 'var(--border-strong)' : 'var(--text-muted)', cursor: index === 0 ? 'not-allowed' : 'pointer', padding: '2px', display: 'flex' }}
                 >
                   <ArrowUp size={14} />
                 </button>
@@ -165,18 +157,22 @@ const SeccionesPanel = () => {
                   onClick={() => moverSeccion(index, 1)}
                   disabled={index === secciones.length - 1 || reordenando}
                   aria-label="Bajar"
-                  style={{ background: 'transparent', border: 'none', color: index === secciones.length - 1 ? '#334155' : '#94a3b8', cursor: index === secciones.length - 1 ? 'not-allowed' : 'pointer', padding: '2px' }}
+                  style={{ background: 'transparent', border: 'none', color: index === secciones.length - 1 ? 'var(--border-strong)' : 'var(--text-muted)', cursor: index === secciones.length - 1 ? 'not-allowed' : 'pointer', padding: '2px', display: 'flex' }}
                 >
                   <ArrowDown size={14} />
                 </button>
-              </div>
-              <span style={{ flex: 1, color: '#e2e8f0', fontSize: '0.95rem' }}>{s.nombre}</span>
-              <button onClick={() => abrirEditar(s)} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#3b82f6', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500 }}>
-                <Pencil size={14} /> Renombrar
-              </button>
-              <button onClick={() => setDeleteTarget(s)} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#f43f5e', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500 }}>
-                <Trash2 size={14} /> Eliminar
-              </button>
+              </span>
+              <span style={{ flex: '1 1 180px', minWidth: 0 }}>
+                <span style={{ display: 'block', fontFamily: 'var(--font-serif)', fontSize: '1.15rem' }}>{s.nombre}</span>
+              </span>
+              <span style={{ flex: '0 0 auto', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                <button onClick={() => abrirEditar(s)} className="admin-link-gold-plain">
+                  <Pencil size={14} /> Renombrar
+                </button>
+                <button onClick={() => setDeleteTarget(s)} className="admin-link-error">
+                  <Trash2 size={14} /> Eliminar
+                </button>
+              </span>
             </div>
           ))}
         </div>
@@ -189,42 +185,30 @@ const SeccionesPanel = () => {
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
             onClick={cerrarForm}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}
+            className="admin-modal-overlay"
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              initial={{ opacity: 0, scale: 0.97, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97, y: 10 }}
               transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
               onClick={(e) => e.stopPropagation()}
-              style={{ width: '90%', maxWidth: '400px', background: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '2.5rem', zIndex: 301 }}
+              className="admin-modal"
+              style={{ maxWidth: '400px' }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                <h2 style={{ fontSize: '1.4rem', color: '#fff', fontFamily: 'var(--font-serif)', fontStyle: 'italic' }}>
-                  {editing ? 'Renombrar Sección' : 'Nueva Sección'}
-                </h2>
-                <button onClick={cerrarForm} style={{ color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer' }}><X size={22} /></button>
+              <div className="admin-modal-head">
+                <h2 className="admin-modal-title">{editing ? 'Renombrar sección' : 'Nueva sección'}</h2>
+                <button onClick={cerrarForm} className="admin-modal-close" aria-label="Cerrar"><X size={22} /></button>
               </div>
 
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>Nombre</label>
-                  <input
-                    type="text"
-                    placeholder="Ej: Camisetas"
-                    value={nombre}
-                    onChange={(e) => setNombre(e.target.value)}
-                    autoFocus
-                    style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: 'white', padding: '0.75rem 1rem', fontSize: '0.95rem' }}
-                  />
-                </div>
+                <label className="admin-field">
+                  <span>Nombre</span>
+                  <input type="text" placeholder="Ej: Camisetas" value={nombre} onChange={(e) => setNombre(e.target.value)} autoFocus />
+                </label>
 
-                {formError && <p style={{ color: '#f87171', fontSize: '0.85rem' }}>{formError}</p>}
+                {formError && <p className="admin-error">{formError}</p>}
 
-                <button
-                  type="submit"
-                  disabled={saving}
-                  style={{ marginTop: '0.5rem', padding: '0.9rem', background: saving ? '#334155' : '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '0.9rem', fontWeight: 500 }}
-                >
-                  {saving ? 'Guardando...' : editing ? 'Guardar Cambios' : 'Crear Sección'}
+                <button type="submit" disabled={saving} className="premium-button" style={{ marginTop: '0.5rem', opacity: saving ? 0.6 : 1, cursor: saving ? 'not-allowed' : 'pointer' }}>
+                  {saving ? 'Guardando…' : editing ? 'Guardar cambios' : 'Crear sección'}
                 </button>
               </form>
             </motion.div>
@@ -239,33 +223,31 @@ const SeccionesPanel = () => {
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
             onClick={() => !deleting && setDeleteTarget(null)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}
+            className="admin-modal-overlay"
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              initial={{ opacity: 0, scale: 0.97, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97, y: 10 }}
               transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
               onClick={(e) => e.stopPropagation()}
-              style={{ width: '90%', maxWidth: '380px', background: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '2.25rem', zIndex: 301, textAlign: 'center' }}
+              className="admin-confirm-modal"
             >
-              <Trash2 size={28} color="#f43f5e" style={{ marginBottom: '1rem' }} />
-              <h3 style={{ color: '#fff', fontSize: '1.15rem', marginBottom: '0.75rem' }}>¿Eliminar esta sección?</h3>
-              <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '2rem' }}>
+              <Trash2 size={28} color="var(--error)" style={{ marginBottom: '1rem' }} />
+              <h3 className="admin-confirm-title">¿Eliminar esta sección?</h3>
+              <p className="admin-confirm-text">
                 "{deleteTarget.nombre}" se eliminará. Los productos que la tengan asignada quedarán sin sección (no se borran).
               </p>
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
-                <button onClick={() => setDeleteTarget(null)} disabled={deleting}
-                  style={{ flex: 1, padding: '0.75rem', background: 'transparent', border: '1px solid #334155', color: 'white', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}>
-                  Cancelar
-                </button>
-                <button onClick={confirmarEliminar} disabled={deleting}
-                  style={{ flex: 1, padding: '0.75rem', background: '#f43f5e', border: 'none', color: 'white', borderRadius: '8px', cursor: deleting ? 'not-allowed' : 'pointer', fontSize: '0.85rem', opacity: deleting ? 0.7 : 1 }}>
-                  {deleting ? 'Eliminando...' : 'Eliminar'}
+              <div className="admin-confirm-actions">
+                <button onClick={() => setDeleteTarget(null)} disabled={deleting} className="admin-confirm-cancel">Cancelar</button>
+                <button onClick={confirmarEliminar} disabled={deleting} className="admin-confirm-delete" style={{ opacity: deleting ? 0.7 : 1, cursor: deleting ? 'not-allowed' : 'pointer' }}>
+                  {deleting ? 'Eliminando…' : 'Eliminar'}
                 </button>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      <style>{ADMIN_STYLES}</style>
     </motion.div>
   );
 };

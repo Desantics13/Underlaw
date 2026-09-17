@@ -1,94 +1,94 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { ShoppingCart, Menu, X, Search } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import logoUnderlaw from '../assets/logo-underlaw.jpg';
+import { API_URL } from '../utils/adminApi';
 
-const Navbar = () => {
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+// El botón dorado de la nav solo aparece cuando hay un lanzamiento real activo
+// (programado -> ancla al bloque de inscripción con el nombre del drop, lanzado
+// -> ir directo a comprarlo). Sin drop activo, no se muestra: sería redundante
+// con el enlace "Colección" de al lado.
+const useDropCta = () => {
+  const [drop, setDrop] = useState(null);
 
   useEffect(() => {
-    const handleScroll = () => setIsScrolled(window.scrollY > 50);
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    fetch(`${API_URL}/api/lanzamientos/home`)
+      .then((r) => r.json())
+      .then(({ lanzamiento }) => setDrop(lanzamiento || null))
+      .catch(() => {});
   }, []);
 
-  // Cierra el menú móvil al cambiar de ruta
-  const closeMobile = () => setMobileMenuOpen(false);
+  if (drop && drop.estado === 'programado') {
+    return { label: drop.nombre_lanzamiento || 'Próximo drop', to: '/#lanzamiento' };
+  }
+  if (drop && drop.estado === 'lanzado') {
+    return { label: 'Comprar', to: drop.producto_id ? `/products?producto=${drop.producto_id}` : '/products' };
+  }
+  return null;
+};
+
+const Navbar = () => {
+  const cta = useDropCta();
+  const { pathname } = useLocation();
+  const isHome = pathname === '/';
 
   return (
-    <>
-      <nav
-        style={{
-          position: 'fixed', top: 0, left: 0, width: '100%', zIndex: 50,
-          transition: 'all 0.5s ease',
-          padding: isScrolled ? '0.75rem 0' : '1.5rem 0',
-          background: isScrolled ? 'rgba(10,10,10,0.85)' : 'transparent',
-          backdropFilter: isScrolled ? 'blur(12px)' : 'none',
-          borderBottom: isScrolled ? '1px solid var(--border)' : 'none',
-        }}
-      >
-        <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <nav className="nav-bar">
+      <Link to="/" aria-label="Under Law" className="nav-logo">
+        <img src={logoUnderlaw} alt="Under Law" className={isHome ? 'nav-logo-img' : 'nav-logo-img nav-logo-img-small'} />
+        {!isHome && <span className="nav-wordmark">UnderLaw</span>}
+      </Link>
 
-          {/* ── Left: spacer (mantiene el logo centrado) ── */}
-          <div style={{ flex: 1, display: 'flex', gap: '1.5rem' }} className="nav-desktop-links" />
-
-          {/* ── Center: Logo ── */}
-          <Link to="/" onClick={closeMobile} style={{ flex: 1, textAlign: 'center', fontSize: isScrolled ? '1.4rem' : '2rem', transition: 'all 0.4s ease', fontFamily: 'var(--font-serif)', fontStyle: 'normal', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
-            UnderLaw
-          </Link>
-
-          {/* ── Right: desktop icons ── */}
-          <div className="nav-desktop-links" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '1.5rem' }}>
-            <button style={{ color: 'white' }}><Search size={20} strokeWidth={1.5} /></button>
-            <Link to="/products" style={{ color: 'white', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <ShoppingCart size={20} strokeWidth={1.5} />
-            </Link>
-          </div>
-
-          {/* ── Right: mobile hamburger ── */}
-          <button
-            className="nav-mobile-btn"
-            onClick={() => setMobileMenuOpen(prev => !prev)}
-            style={{ display: 'none', color: 'white', zIndex: 60 }}
-          >
-            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
-        </div>
-      </nav>
-
-      {/* ── Mobile Menu Overlay ── */}
-      {mobileMenuOpen && (
-        <div
-          style={{
-            position: 'fixed', inset: 0, zIndex: 55,
-            background: 'rgba(5,5,5,0.98)',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            gap: '3rem',
-          }}
-        >
-          {[
-            { to: '/', label: 'Inicio' },
-            { to: '/products', label: 'Colección' },
-          ].map(({ to, label }) => (
-            <Link
-              key={to}
-              to={to}
-              onClick={closeMobile}
-              style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '3rem', color: 'white', letterSpacing: '-0.02em' }}
-            >
-              {label}
-            </Link>
-          ))}
-        </div>
-      )}
+      <div className="nav-links">
+        {isHome ? (
+          <>
+            <Link to="/products" className="nav-pill">Colección</Link>
+            <Link to="/#historia" className="nav-pill">Historia</Link>
+            {cta && <Link to={cta.to} className="nav-pill">{cta.label}</Link>}
+          </>
+        ) : (
+          <Link to="/" className="nav-link">Inicio</Link>
+        )}
+      </div>
 
       <style>{`
-        @media (max-width: 768px) {
-          .nav-desktop-links { display: none !important; }
-          .nav-mobile-btn   { display: flex !important; }
+        .nav-bar {
+          position: sticky;
+          top: 0;
+          z-index: 60;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1rem;
+          padding: 0.9rem clamp(1.1rem, 4vw, 2.5rem);
+          background: rgba(6,6,6,0.82);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+          border-bottom: 1px solid var(--border);
         }
+        .nav-logo { display: flex; align-items: center; gap: 0.65rem; flex-shrink: 0; min-width: 0; }
+        .nav-logo-img {
+          width: 38px; height: 38px; border-radius: 50%; object-fit: cover; display: block; flex-shrink: 0;
+        }
+        .nav-logo-img-small { width: 32px; height: 32px; }
+        .nav-wordmark { font-family: var(--font-serif); font-size: 1.35rem; letter-spacing: -0.01em; white-space: nowrap; }
+        .nav-links {
+          display: flex;
+          align-items: center;
+          gap: clamp(0.7rem, 2.6vw, 1.9rem);
+          font-size: 0.62rem;
+          text-transform: uppercase;
+          letter-spacing: 0.14em;
+        }
+        .nav-link { color: var(--text-primary); }
+        .nav-pill {
+          background: var(--text-primary);
+          color: var(--bg-primary);
+          padding: 0.6rem 1rem;
+          font-weight: 500;
+        }
+        .nav-pill:hover { color: var(--bg-primary); opacity: 0.85; }
       `}</style>
-    </>
+    </nav>
   );
 };
 

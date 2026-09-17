@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart3, LogOut, Bell, Settings, CheckCircle, Clock, User, X, Eye, LayoutDashboard, Rocket, LayoutGrid, Boxes } from 'lucide-react';
+import { Bell, LogOut, X } from 'lucide-react';
+import logoUnderlaw from '../assets/logo-underlaw.jpg';
 import ProductosPanel from '../components/ProductosPanel';
 import LanzamientosPanel from '../components/LanzamientosPanel';
 import SeccionesPanel from '../components/SeccionesPanel';
 import InventarioPanel from '../components/InventarioPanel';
+import { ADMIN_STYLES } from '../components/adminStyles';
 import { API_URL, adminFetch, getAdminToken, setAdminToken, clearAdminToken, onAdminSessionExpired } from '../utils/adminApi';
 
 const ESTADO_LABELS = {
@@ -15,13 +17,25 @@ const ESTADO_LABELS = {
   ERROR: 'Cancelada'
 };
 
-const ESTADO_COLORS = {
-  Aprobado: { bg: 'rgba(16,185,129,0.1)', color: '#10b981' },
-  Pendiente: { bg: 'rgba(245,158,11,0.1)', color: '#f59e0b' },
-  Cancelada: { bg: 'rgba(244,63,94,0.1)', color: '#f43f5e' }
-};
+const ESTADO_COLOR = { Aprobado: 'var(--success)', Pendiente: 'var(--gold)', Cancelada: 'var(--error)' };
 
 const PEDIDOS_POR_PAGINA = 8;
+
+const TABS = [
+  ['pedidos', 'Pedidos'],
+  ['productos', 'Productos'],
+  ['lanzamientos', 'Lanzamientos'],
+  ['secciones', 'Secciones'],
+  ['inventario', 'Inventario']
+];
+
+const TITULOS = {
+  pedidos: ['Pedidos', 'Resumen de ventas y historial de compras.'],
+  productos: ['Catálogo de productos', 'Crea, edita, suspende o elimina cada pieza del catálogo.'],
+  lanzamientos: ['Lanzamientos', 'Programa los drops, su imagen y su fecha de apertura.'],
+  secciones: ['Secciones de la colección', 'Aparecen como pestañas en la Colección, en el orden de esta lista, y solo si tienen al menos un producto activo.'],
+  inventario: ['Inventario', 'Carga las cantidades por talla de cada producto y de los próximos lanzamientos.']
+};
 
 const Admin = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(() => !!getAdminToken());
@@ -34,7 +48,7 @@ const Admin = () => {
   const [selectedPedido, setSelectedPedido] = useState(null);
   const [selectedDireccion, setSelectedDireccion] = useState(null);
   const [paginaActual, setPaginaActual] = useState(1);
-  const [activeView, setActiveView] = useState('pedidos'); // 'pedidos' | 'productos' | 'lanzamientos' | 'secciones'
+  const [activeView, setActiveView] = useState('pedidos');
   const notifRef = useRef(null);
 
   useEffect(() => {
@@ -150,96 +164,86 @@ const Admin = () => {
   // ── PANTALLA DE LOGIN ──────────────────────────────────────────────────────
   if (!isAuthenticated) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#050505' }}>
+      <div className="admin-login-page">
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          style={{ width: '100%', maxWidth: '400px', padding: 'clamp(2rem, 5vw, 3rem)', border: '1px solid rgba(255,255,255,0.08)', background: '#0a0a0a', margin: '0 1.25rem' }}
+          className="admin-login-card"
         >
-          <h1 className="font-serif italic" style={{ fontSize: '2.5rem', textAlign: 'center', marginBottom: '0.5rem', color: '#fff' }}>UnderLaw</h1>
-          <p style={{ textAlign: 'center', color: '#71717a', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: '3rem' }}>Panel Administrativo</p>
+          <img src={logoUnderlaw} alt="Under Law" className="admin-login-logo" />
+          <h1 className="font-serif" style={{ fontStyle: 'italic', fontSize: '2.4rem', textAlign: 'center', marginBottom: '0.5rem' }}>UnderLaw</h1>
+          <p className="eyebrow" style={{ textAlign: 'center', display: 'block', marginBottom: '2.75rem' }}>Panel administrativo</p>
 
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#71717a' }}>Contraseña</label>
+            <label className="admin-field">
+              <span>Contraseña</span>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 autoFocus
-                style={{ background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.15)', color: 'white', padding: '0.75rem 0', fontSize: '1rem', letterSpacing: '0.2em' }}
+                style={{ letterSpacing: '0.2em' }}
               />
-            </div>
-            {loginError && (
-              <p style={{ color: '#f43f5e', fontSize: '0.85rem', textAlign: 'center' }}>{loginError}</p>
-            )}
-            <button type="submit" disabled={loggingIn} className="premium-button" style={{ width: '100%', padding: '1.2rem', marginTop: '1rem', opacity: loggingIn ? 0.6 : 1, cursor: loggingIn ? 'not-allowed' : 'pointer' }}>
-              {loggingIn ? 'Ingresando...' : 'Ingresar'}
+            </label>
+            {loginError && <p className="admin-error" style={{ textAlign: 'center' }}>{loginError}</p>}
+            <button type="submit" disabled={loggingIn} className="premium-button" style={{ width: '100%', opacity: loggingIn ? 0.6 : 1, cursor: loggingIn ? 'not-allowed' : 'pointer' }}>
+              {loggingIn ? 'Ingresando…' : 'Ingresar'}
             </button>
           </form>
         </motion.div>
+        <style>{ADMIN_STYLES}</style>
       </div>
     );
   }
 
   // ── DASHBOARD PRINCIPAL ────────────────────────────────────────────────────
-  return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#0f111a', color: '#e2e8f0', paddingTop: '100px', fontFamily: 'var(--font-sans)' }}>
-      <div className="container" style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 2rem' }}>
+  const [tituloVista, subtituloVista] = TITULOS[activeView];
 
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem', flexWrap: 'wrap', gap: '1rem' }}>
-          <div>
-            <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#fff', marginBottom: '0.5rem' }}>Dashboard <span style={{ color: '#3b82f6' }}>Administrativo</span></h1>
-            <p style={{ color: '#94a3b8' }}>Bienvenido de nuevo, UnderLaw Admin.</p>
+  return (
+    <div className="admin-page">
+      <header className="admin-header">
+        <div className="admin-header-top">
+          <div className="admin-brand">
+            <img src={logoUnderlaw} alt="Under Law" className="admin-brand-logo" />
+            <div>
+              <p className="admin-brand-name">UnderLaw</p>
+              <p className="admin-brand-sub">Administración</p>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-            <button style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#1e293b', color: 'white', padding: '0.75rem 1.25rem', borderRadius: '8px', border: '1px solid #334155', cursor: 'pointer', fontSize: '0.85rem' }}>
-              <BarChart3 size={16} /> Ver Análisis
-            </button>
-
-            {/* Campanita de Notificaciones */}
-            <div style={{ position: 'relative' }} ref={notifRef}>
-              <button
-                onClick={() => setShowNotifications(prev => !prev)}
-                style={{ position: 'relative', background: '#1e293b', color: 'white', padding: '0.75rem', borderRadius: '8px', border: '1px solid #334155', cursor: 'pointer' }}
-              >
+          <div className="admin-header-actions">
+            <div className="admin-notif" ref={notifRef}>
+              <button onClick={() => setShowNotifications((p) => !p)} aria-label="Notificaciones" className="admin-icon-btn">
                 <Bell size={18} />
-                {unreadCount > 0 && (
-                  <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#f43f5e', color: 'white', borderRadius: '50%', width: '18px', height: '18px', fontSize: '0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                    {unreadCount}
-                  </span>
-                )}
+                {unreadCount > 0 && <span className="admin-notif-badge">{unreadCount}</span>}
               </button>
-
               <AnimatePresence>
                 {showNotifications && (
                   <motion.div
-                    initial={{ opacity: 0, y: -10 }}
+                    initial={{ opacity: 0, y: -8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: '340px', background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', zIndex: 200, overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                    className="admin-notif-panel"
                   >
-                    <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: '600', fontSize: '0.9rem' }}>Notificaciones</span>
-                      <div style={{ display: 'flex', gap: '0.75rem' }}>
-                        <button onClick={markAllRead} style={{ fontSize: '0.75rem', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer' }}>Marcar leídas</button>
-                        <button onClick={clearNotifications} style={{ fontSize: '0.75rem', color: '#f43f5e', background: 'none', border: 'none', cursor: 'pointer' }}>Borrar todo</button>
+                    <div className="admin-notif-head">
+                      <span className="eyebrow">Notificaciones</span>
+                      <div style={{ display: 'flex', gap: '0.85rem' }}>
+                        <button onClick={markAllRead} className="admin-link-gold" style={{ borderBottom: 'none' }}>Marcar leídas</button>
+                        <button onClick={clearNotifications} className="admin-link-muted">Borrar</button>
                       </div>
                     </div>
                     <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
                       {notificaciones.length === 0 ? (
-                        <p style={{ textAlign: 'center', padding: '2rem', color: '#64748b', fontSize: '0.85rem' }}>Sin notificaciones nuevas</p>
+                        <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-dim)', fontSize: '0.85rem' }}>Sin notificaciones nuevas</p>
                       ) : (
-                        notificaciones.map(n => (
-                          <div key={n.id} style={{ padding: '1rem 1.25rem', borderBottom: '1px solid rgba(51,65,85,0.5)', background: n.leida ? 'transparent' : 'rgba(59,130,246,0.05)', display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-                            {!n.leida && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3b82f6', marginTop: '6px', flexShrink: 0 }} />}
-                            {n.leida && <div style={{ width: '8px', height: '8px', flexShrink: 0 }} />}
+                        notificaciones.map((n) => (
+                          <div key={n.id} className="admin-notif-item" style={{ background: n.leida ? 'transparent' : 'rgba(192,161,91,0.06)' }}>
+                            <span className="admin-notif-dot" style={{ background: n.leida ? 'var(--border-strong)' : 'var(--gold)' }} />
                             <div>
-                              <p style={{ fontSize: '0.85rem', color: '#e2e8f0', lineHeight: '1.4' }}>{n.mensaje}</p>
-                              <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>{new Date(n.fecha_creacion).toLocaleString('es-CO')}</p>
+                              <p style={{ fontSize: '0.85rem', lineHeight: 1.5, margin: 0, color: 'var(--text-secondary)' }}>{n.mensaje}</p>
+                              <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', margin: '0.25rem 0 0' }}>{new Date(n.fecha_creacion).toLocaleString('es-CO')}</p>
                             </div>
                           </div>
                         ))
@@ -250,28 +254,26 @@ const Admin = () => {
               </AnimatePresence>
             </div>
 
-            {[
-              { key: 'pedidos', label: 'Pedidos', Icon: LayoutDashboard },
-              { key: 'productos', label: 'Productos', Icon: Settings },
-              { key: 'lanzamientos', label: 'Lanzamientos', Icon: Rocket },
-              { key: 'secciones', label: 'Secciones', Icon: LayoutGrid },
-              { key: 'inventario', label: 'Inventario', Icon: Boxes },
-            ].map(({ key, label, Icon }) => (
-              <button
-                key={key}
-                onClick={() => setActiveView(key)}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: activeView === key ? '#3b82f6' : '#1e293b', color: 'white', padding: '0.75rem 1.25rem', borderRadius: '8px', border: activeView === key ? '1px solid #3b82f6' : '1px solid #334155', cursor: 'pointer', fontSize: '0.85rem' }}
-              >
-                <Icon size={16} /> {label}
-              </button>
-            ))}
-
-            <button onClick={handleLogout} title="Cerrar Sesión" style={{ background: '#1e293b', color: '#f43f5e', padding: '0.75rem', borderRadius: '8px', border: '1px solid #334155', cursor: 'pointer' }}>
+            <button onClick={handleLogout} aria-label="Cerrar sesión" className="admin-icon-btn">
               <LogOut size={18} />
             </button>
           </div>
         </div>
 
+        <div className="admin-tabs">
+          {TABS.map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setActiveView(key)}
+              className={`admin-tab ${activeView === key ? 'admin-tab-activa' : ''}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </header>
+
+      <div className="admin-content">
         {activeView === 'productos' ? (
           <ProductosPanel />
         ) : activeView === 'lanzamientos' ? (
@@ -281,112 +283,107 @@ const Admin = () => {
         ) : activeView === 'inventario' ? (
           <InventarioPanel />
         ) : (
-        <>
-        {/* Tarjetas de Resumen */}
-        <div className="admin-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2rem', marginBottom: '3rem' }}>
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={{ background: '#1e293b', padding: '2rem', borderRadius: '12px', border: '1px solid #334155', position: 'relative' }}>
-            <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '1rem' }}>Pedidos Totales</p>
-            <h2 style={{ fontSize: '2.5rem', color: '#fff', margin: 0 }}>{pedidos.length}</h2>
-            <div style={{ position: 'absolute', top: '2rem', right: '2rem', background: 'rgba(59,130,246,0.1)', color: '#3b82f6', padding: '0.75rem', borderRadius: '50%' }}><CheckCircle size={24} /></div>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} style={{ background: '#1e293b', padding: '2rem', borderRadius: '12px', border: '1px solid #334155', position: 'relative' }}>
-            <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '1rem' }}>Ingresos Est.</p>
-            <h2 style={{ fontSize: '2.5rem', color: '#fff', margin: 0 }}>${totalIngresos.toLocaleString('es-CO')}</h2>
-            <div style={{ position: 'absolute', top: '2rem', right: '2rem', background: 'rgba(16,185,129,0.1)', color: '#10b981', padding: '0.75rem', borderRadius: '50%' }}><Clock size={24} /></div>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} style={{ background: '#1e293b', padding: '2rem', borderRadius: '12px', border: '1px solid #334155', position: 'relative' }}>
-            <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '1rem' }}>Clientes Registrados</p>
-            <h2 style={{ fontSize: '2.5rem', color: '#fff', margin: 0 }}>{new Set(pedidos.map(p => p.correo_cliente)).size}</h2>
-            <div style={{ position: 'absolute', top: '2rem', right: '2rem', background: 'rgba(244,63,94,0.1)', color: '#f43f5e', padding: '0.75rem', borderRadius: '50%' }}><User size={24} /></div>
-          </motion.div>
-        </div>
-
-        {/* Tabla de Pedidos */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }} style={{ background: '#1e293b', padding: '2rem', borderRadius: '12px', border: '1px solid #334155' }}>
-          <h3 style={{ fontSize: '1.25rem', color: '#fff', marginBottom: '2rem' }}>Historial de Pedidos</h3>
-
-          <div className="admin-table-wrapper">
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8', fontSize: '0.85rem' }}>
-                <th style={{ paddingBottom: '1rem', paddingRight: '1rem', fontWeight: '500' }}>Cliente</th>
-                <th style={{ paddingBottom: '1rem', paddingRight: '1rem', fontWeight: '500' }}>Producto</th>
-                <th style={{ paddingBottom: '1rem', paddingRight: '1rem', fontWeight: '500' }}>Talla</th>
-                <th style={{ paddingBottom: '1rem', paddingRight: '1rem', fontWeight: '500' }}>Precio</th>
-                <th style={{ paddingBottom: '1rem', paddingRight: '1rem', fontWeight: '500' }}>Fecha</th>
-                <th style={{ paddingBottom: '1rem', paddingRight: '1rem', fontWeight: '500' }}>Estado</th>
-                <th style={{ paddingBottom: '1rem', paddingRight: '1rem', fontWeight: '500' }}>Dirección</th>
-                <th style={{ paddingBottom: '1rem', fontWeight: '500' }}>Datos</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pedidosPagina.map((pedido, index) => (
-                <tr key={index} style={{ borderBottom: '1px solid rgba(51,65,85,0.5)' }}>
-                  <td style={{ padding: '1.25rem 1rem 1.25rem 0', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <div style={{ width: '35px', height: '35px', borderRadius: '50%', background: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <User size={16} />
-                    </div>
-                    {pedido.cliente}
-                  </td>
-                  <td style={{ padding: '1.25rem 1rem 1.25rem 0' }}>{pedido.producto}</td>
-                  <td style={{ padding: '1.25rem 1rem 1.25rem 0' }}>{pedido.talla || '—'}</td>
-                  <td style={{ padding: '1.25rem 1rem 1.25rem 0' }}>${Number(pedido.precio).toLocaleString('es-CO')}</td>
-                  <td style={{ padding: '1.25rem 1rem 1.25rem 0' }}>{pedido.fecha}</td>
-                  <td style={{ padding: '1.25rem 1rem 1.25rem 0' }}>
-                    <span style={{ padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.8rem', background: (ESTADO_COLORS[pedido.estado] || ESTADO_COLORS.Pendiente).bg, color: (ESTADO_COLORS[pedido.estado] || ESTADO_COLORS.Pendiente).color }}>
-                      {pedido.estado}
-                    </span>
-                  </td>
-                  <td style={{ padding: '1.25rem 1rem 1.25rem 0' }}>
-                    <button
-                      onClick={() => setSelectedDireccion(pedido)}
-                      style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#3b82f6', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: '500', fontSize: '0.85rem' }}
-                    >
-                      <Eye size={15} /> Ver Dirección
-                    </button>
-                  </td>
-                  <td style={{ padding: '1.25rem 0' }}>
-                    <button
-                      onClick={() => setSelectedPedido(pedido)}
-                      style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#3b82f6', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: '500', fontSize: '0.85rem' }}
-                    >
-                      <Eye size={15} /> Ver datos
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {pedidos.length === 0 && (
-                <tr><td colSpan="8" style={{ textAlign: 'center', padding: '3rem 0', color: '#64748b' }}>No hay pedidos registrados aún.</td></tr>
-              )}
-            </tbody>
-          </table>
-          </div>
-
-          {pedidos.length > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid #334155' }}>
-              <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Página {paginaActual} de {totalPaginas}</span>
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
-                <button
-                  onClick={() => setPaginaActual(p => Math.max(1, p - 1))}
-                  disabled={paginaActual === 1}
-                  style={{ padding: '0.5rem 1rem', background: '#1e293b', color: paginaActual === 1 ? '#475569' : 'white', border: '1px solid #334155', borderRadius: '6px', cursor: paginaActual === 1 ? 'not-allowed' : 'pointer', fontSize: '0.8rem' }}
-                >
-                  Anterior
-                </button>
-                <button
-                  onClick={() => setPaginaActual(p => Math.min(totalPaginas, p + 1))}
-                  disabled={paginaActual === totalPaginas}
-                  style={{ padding: '0.5rem 1rem', background: '#1e293b', color: paginaActual === totalPaginas ? '#475569' : 'white', border: '1px solid #334155', borderRadius: '6px', cursor: paginaActual === totalPaginas ? 'not-allowed' : 'pointer', fontSize: '0.8rem' }}
-                >
-                  Siguiente
-                </button>
+          <>
+            <div className="admin-content-head">
+              <div>
+                <h1 className="admin-content-title">{tituloVista}</h1>
+                <p className="admin-content-sub">{subtituloVista}</p>
               </div>
             </div>
-          )}
-        </motion.div>
-        </>
+
+            {/* Tarjetas de Resumen */}
+            <div className="admin-stats-grid">
+              <div className="admin-stat-cell">
+                <p className="admin-stat-label">Pedidos totales</p>
+                <p className="admin-stat-value tabular">{pedidos.length}</p>
+              </div>
+              <div className="admin-stat-cell">
+                <p className="admin-stat-label">Ingresos aprobados</p>
+                <p className="admin-stat-value tabular" style={{ color: 'var(--gold)' }}>${totalIngresos.toLocaleString('es-CO')}</p>
+              </div>
+              <div className="admin-stat-cell">
+                <p className="admin-stat-label">Clientes</p>
+                <p className="admin-stat-value tabular">{new Set(pedidos.map(p => p.correo_cliente)).size}</p>
+              </div>
+            </div>
+
+            {/* Tabla de Pedidos */}
+            <div className="admin-card">
+              <div className="admin-card-head">
+                <h2 className="admin-card-title">Historial de pedidos</h2>
+              </div>
+
+              <div className="admin-table-wrapper">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Cliente</th>
+                      <th>Producto</th>
+                      <th>Talla</th>
+                      <th>Precio</th>
+                      <th>Fecha</th>
+                      <th>Estado</th>
+                      <th>Dirección</th>
+                      <th>Datos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pedidosPagina.map((pedido, index) => {
+                      const iniciales = (pedido.nombre_cliente?.[0] || '') + (pedido.apellido_cliente?.[0] || '');
+                      const color = ESTADO_COLOR[pedido.estado] || 'var(--gold)';
+                      return (
+                        <tr key={index}>
+                          <td>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                              <span className="admin-avatar">{iniciales.toUpperCase()}</span>
+                              <span style={{ fontSize: '0.9rem' }}>{pedido.cliente}</span>
+                            </span>
+                          </td>
+                          <td>{pedido.producto}</td>
+                          <td style={{ color: 'var(--text-tertiary)' }}>{pedido.talla || '—'}</td>
+                          <td className="tabular">${Number(pedido.precio).toLocaleString('es-CO')}</td>
+                          <td style={{ color: 'var(--text-tertiary)' }}>{pedido.fecha}</td>
+                          <td>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.78rem', color }}>
+                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: color }} />{pedido.estado}
+                            </span>
+                          </td>
+                          <td><button onClick={() => setSelectedDireccion(pedido)} className="admin-link-gold">Dirección</button></td>
+                          <td><button onClick={() => setSelectedPedido(pedido)} className="admin-link-gold">Datos</button></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {pedidos.length === 0 && (
+                <p style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-dim)' }}>No hay pedidos registrados aún.</p>
+              )}
+
+              {pedidos.length > 0 && (
+                <div className="admin-pagination">
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Página {paginaActual} de {totalPaginas}</span>
+                  <span style={{ display: 'flex', gap: '0.6rem' }}>
+                    <button
+                      onClick={() => setPaginaActual(p => Math.max(1, p - 1))}
+                      disabled={paginaActual === 1}
+                      className="admin-page-btn"
+                    >
+                      Anterior
+                    </button>
+                    <button
+                      onClick={() => setPaginaActual(p => Math.min(totalPaginas, p + 1))}
+                      disabled={paginaActual === totalPaginas}
+                      className="admin-page-btn"
+                    >
+                      Siguiente
+                    </button>
+                  </span>
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
 
@@ -394,41 +391,36 @@ const Admin = () => {
       <AnimatePresence>
         {selectedPedido && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
             onClick={() => setSelectedPedido(null)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}
+            className="admin-modal-overlay"
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              initial={{ opacity: 0, scale: 0.97, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97, y: 10 }}
               transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
               onClick={(e) => e.stopPropagation()}
-              style={{ width: '90%', maxWidth: '500px', maxHeight: '85vh', overflowY: 'auto', background: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '2.5rem', zIndex: 301 }}
+              className="admin-modal"
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                <h2 style={{ fontSize: '1.5rem', color: '#fff', fontFamily: 'var(--font-serif)', fontStyle: 'italic' }}>Detalles del Pedido</h2>
-                <button onClick={() => setSelectedPedido(null)} style={{ color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer' }}><X size={22} /></button>
+              <div className="admin-modal-head">
+                <h2 className="admin-modal-title">Detalles del pedido</h2>
+                <button onClick={() => setSelectedPedido(null)} className="admin-modal-close" aria-label="Cerrar"><X size={22} /></button>
               </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div className="admin-modal-rows">
                 {[
                   { label: 'Nombre completo', value: selectedPedido.cliente },
-                  { label: 'Correo electrónico', value: selectedPedido.correo_cliente },
+                  { label: 'Correo', value: selectedPedido.correo_cliente },
                   { label: 'Teléfono', value: selectedPedido.telefono_cliente },
-                  { label: 'Producto(s)', value: selectedPedido.producto },
-                  { label: 'Talla(s)', value: selectedPedido.talla || '—' },
+                  { label: 'Producto', value: selectedPedido.producto },
+                  { label: 'Talla', value: selectedPedido.talla || '—' },
                   { label: 'Total pagado', value: `$${Number(selectedPedido.precio).toLocaleString('es-CO')} COP` },
                   { label: 'Método de pago', value: selectedPedido.metodo_pago },
                   { label: 'Fecha de compra', value: selectedPedido.fecha },
-                  { label: 'Estado', value: selectedPedido.estado },
+                  { label: 'Estado', value: selectedPedido.estado }
                 ].map(({ label, value }) => (
-                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(51,65,85,0.5)', paddingBottom: '1rem' }}>
-                    <span style={{ color: '#64748b', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
-                    <span style={{ color: '#e2e8f0', fontSize: '0.95rem', textAlign: 'right', maxWidth: '55%' }}>{value}</span>
+                  <div key={label} className="admin-modal-row">
+                    <span>{label}</span>
+                    <span style={{ textAlign: 'right' }}>{value}</span>
                   </div>
                 ))}
               </div>
@@ -441,37 +433,32 @@ const Admin = () => {
       <AnimatePresence>
         {selectedDireccion && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
             onClick={() => setSelectedDireccion(null)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}
+            className="admin-modal-overlay"
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              initial={{ opacity: 0, scale: 0.97, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97, y: 10 }}
               transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
               onClick={(e) => e.stopPropagation()}
-              style={{ width: '90%', maxWidth: '500px', maxHeight: '85vh', overflowY: 'auto', background: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '2.5rem', zIndex: 301 }}
+              className="admin-modal"
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                <h2 style={{ fontSize: '1.5rem', color: '#fff', fontFamily: 'var(--font-serif)', fontStyle: 'italic' }}>Dirección de Envío</h2>
-                <button onClick={() => setSelectedDireccion(null)} style={{ color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer' }}><X size={22} /></button>
+              <div className="admin-modal-head">
+                <h2 className="admin-modal-title">Dirección de envío</h2>
+                <button onClick={() => setSelectedDireccion(null)} className="admin-modal-close" aria-label="Cerrar"><X size={22} /></button>
               </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div className="admin-modal-rows">
                 {[
                   { label: 'Cliente', value: selectedDireccion.cliente },
                   { label: 'País', value: selectedDireccion.pais || 'No registrado' },
                   { label: 'Municipio', value: selectedDireccion.municipio || 'No registrado' },
                   { label: 'Ciudad', value: selectedDireccion.ciudad || 'No registrado' },
-                  { label: 'Dirección', value: selectedDireccion.direccion || 'No registrado' },
+                  { label: 'Dirección', value: selectedDireccion.direccion || 'No registrado' }
                 ].map(({ label, value }) => (
-                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(51,65,85,0.5)', paddingBottom: '1rem' }}>
-                    <span style={{ color: '#64748b', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
-                    <span style={{ color: '#e2e8f0', fontSize: '0.95rem', textAlign: 'right', maxWidth: '55%' }}>{value}</span>
+                  <div key={label} className="admin-modal-row">
+                    <span>{label}</span>
+                    <span style={{ textAlign: 'right' }}>{value}</span>
                   </div>
                 ))}
               </div>
@@ -480,17 +467,7 @@ const Admin = () => {
         )}
       </AnimatePresence>
 
-      <style>{`
-        @media (max-width: 768px) {
-          .admin-stats-grid {
-            grid-template-columns: 1fr !important;
-          }
-          .admin-table-wrapper {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-          }
-        }
-      `}</style>
+      <style>{ADMIN_STYLES}</style>
     </div>
   );
 };

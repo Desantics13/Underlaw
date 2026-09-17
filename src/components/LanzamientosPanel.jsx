@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Pencil, Trash2, X, ImagePlus, Rocket, Clock, CheckCircle } from 'lucide-react';
 import ProductImageCarousel from './ProductImageCarousel';
 import TallasEditor from './TallasEditor';
+import { ADMIN_STYLES } from './adminStyles';
 import { adminFetch, API_URL } from '../utils/adminApi';
 
 const DETALLE_MAX = 120;
@@ -43,8 +44,8 @@ const formatFechaBogota = (iso) => {
 };
 
 const ESTADO_STYLES = {
-  programado: { bg: 'rgba(245,158,11,0.1)', color: '#f59e0b', label: 'Programado', Icon: Clock },
-  lanzado: { bg: 'rgba(16,185,129,0.1)', color: '#10b981', label: 'Lanzado', Icon: CheckCircle }
+  programado: { color: 'var(--gold)', label: 'Programado', Icon: Clock },
+  lanzado: { color: 'var(--success)', label: 'Lanzado', Icon: CheckCircle }
 };
 
 const LanzamientosPanel = () => {
@@ -233,74 +234,80 @@ const LanzamientosPanel = () => {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <h3 style={{ fontSize: '1.25rem', color: '#fff', fontFamily: 'var(--font-serif)', fontStyle: 'italic' }}>Lanzar Producto</h3>
-        <button
-          onClick={abrirCrear}
-          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#3b82f6', color: 'white', padding: '0.75rem 1.25rem', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500 }}
-        >
-          <Plus size={16} /> Configurar Lanzamiento
+      <div className="admin-content-head">
+        <div>
+          <h1 className="admin-content-title">Lanzamientos</h1>
+          <p className="admin-content-sub">
+            Un lanzamiento controla la sección destacada del Home con una cuenta regresiva. No crea ningún producto:
+            al llegar la fecha, el sistema publica el producto en el catálogo y avisa por correo a los inscritos.
+          </p>
+        </div>
+        <button onClick={abrirCrear} className="admin-btn-create">
+          <Plus size={15} /> Nuevo lanzamiento
         </button>
       </div>
-      <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '2rem', maxWidth: '640px' }}>
-        Un lanzamiento controla la sección destacada del Home con una cuenta regresiva. No crea ningún producto:
-        al llegar la fecha, el sistema publica el producto en el catálogo y avisa por correo a los inscritos.
-      </p>
 
       {loading ? (
-        <p style={{ color: '#64748b', textAlign: 'center', padding: '3rem 0' }}>Cargando lanzamientos...</p>
+        <p style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '3rem 0' }}>Cargando lanzamientos...</p>
       ) : lanzamientos.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '4rem 0', color: '#64748b' }}>
-          <Rocket size={32} style={{ marginBottom: '1rem', opacity: 0.5 }} />
+        <div className="admin-empty">
+          <Rocket size={32} />
           <p>Aún no has configurado ningún lanzamiento.</p>
         </div>
       ) : (
-        <div className="productos-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1.5rem' }}>
+        <div className="admin-grid">
           {lanzamientos.map((l) => {
             const estado = ESTADO_STYLES[l.estado] || ESTADO_STYLES.programado;
             const imgs = (l.imagenes || []).map((i) => i.url);
             const editable = l.estado === 'programado';
             return (
-              <div key={l.id} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ aspectRatio: '3/4', background: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                  {imgs.length > 0 ? <ProductImageCarousel images={imgs} alt={l.nombre_producto} /> : <Rocket size={32} color="#475569" />}
-                </div>
-                <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-                    <div>
-                      <p style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#64748b', marginBottom: '0.2rem' }}>{l.nombre_lanzamiento}</p>
-                      <h4 style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '1.1rem', color: '#fff' }}>{l.nombre_producto}</h4>
+              <div key={l.id} className="admin-tile">
+                <div className="admin-tile-media">
+                  {imgs.length > 0 ? (
+                    <ProductImageCarousel images={imgs} alt={l.nombre_producto} />
+                  ) : (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Rocket size={32} color="var(--text-dim)" />
                     </div>
-                    <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.7rem', background: estado.bg, color: estado.color }}>
+                  )}
+                </div>
+                <div className="admin-tile-body">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.6rem' }}>
+                    <div>
+                      <p style={{ margin: 0, fontSize: '0.58rem', textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--text-muted)' }}>{l.nombre_lanzamiento}</p>
+                      <p style={{ margin: '0.3rem 0 0', fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '1.15rem' }}>{l.nombre_producto}</p>
+                    </div>
+                    <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.68rem', color: estado.color }}>
                       <estado.Icon size={12} /> {estado.label}
                     </span>
                   </div>
-                  <p style={{ color: '#94a3b8', fontSize: '0.95rem' }}>${Number(l.precio).toLocaleString('es-CO')} COP</p>
-                  <p style={{ color: '#64748b', fontSize: '0.8rem' }}>
-                    {l.estado === 'lanzado' ? 'Lanzado el ' : 'Lanza el '}{formatFechaBogota(l.fecha_lanzamiento)} <span style={{ opacity: 0.6 }}>(hora Colombia)</span>
+                  <p className="tabular" style={{ margin: '0.5rem 0 0', fontSize: '0.95rem' }}>${Number(l.precio).toLocaleString('es-CO')} COP</p>
+                  <p style={{ margin: '0.3rem 0 0', color: 'var(--text-dim)', fontSize: '0.8rem' }}>
+                    {l.estado === 'lanzado' ? 'Lanzado el ' : 'Lanza el '}{formatFechaBogota(l.fecha_lanzamiento)} <span style={{ opacity: 0.7 }}>(hora Colombia)</span>
                   </p>
 
                   <button
                     onClick={() => toggleActivo(l)}
                     style={{
-                      marginTop: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem',
-                      background: l.activo_en_home ? 'rgba(59,130,246,0.12)' : 'transparent',
-                      border: `1px solid ${l.activo_en_home ? '#3b82f6' : '#334155'}`,
-                      color: l.activo_en_home ? '#3b82f6' : '#94a3b8',
-                      padding: '0.5rem 0.75rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 500
+                      marginTop: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem',
+                      background: l.activo_en_home ? 'rgba(192,161,91,0.1)' : 'transparent',
+                      border: `1px solid ${l.activo_en_home ? 'var(--gold)' : 'var(--border-strong)'}`,
+                      color: l.activo_en_home ? 'var(--gold)' : 'var(--text-muted)',
+                      padding: '0.5rem 0.75rem', cursor: 'pointer', fontSize: '0.7rem', fontFamily: 'var(--font-sans)',
+                      textTransform: 'uppercase', letterSpacing: '0.1em'
                     }}
                   >
-                    Activo en el Home
-                    <span style={{ width: '32px', height: '18px', borderRadius: '999px', background: l.activo_en_home ? '#3b82f6' : '#334155', position: 'relative', flexShrink: 0, transition: 'background 0.2s' }}>
-                      <span style={{ position: 'absolute', top: '2px', left: l.activo_en_home ? '16px' : '2px', width: '14px', height: '14px', borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
+                    Activo en el home
+                    <span style={{ width: '32px', height: '18px', borderRadius: '9px', background: l.activo_en_home ? 'var(--gold)' : 'var(--border-strong)', position: 'relative', flexShrink: 0, transition: 'background 0.2s' }}>
+                      <span style={{ position: 'absolute', top: '2px', left: l.activo_en_home ? '16px' : '2px', width: '14px', height: '14px', borderRadius: '50%', background: 'var(--bg-primary)', transition: 'left 0.2s' }} />
                     </span>
                   </button>
 
-                  <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid #1e293b' }}>
-                    <button onClick={() => abrirEditar(l)} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: editable ? '#3b82f6' : '#64748b', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500 }}>
+                  <div className="admin-tile-actions">
+                    <button onClick={() => abrirEditar(l)} className="admin-link-gold-plain" style={{ color: editable ? 'var(--gold)' : 'var(--text-muted)' }}>
                       <Pencil size={14} /> {editable ? 'Editar' : 'Ver detalle'}
                     </button>
-                    <button onClick={() => setDeleteTarget(l)} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#f43f5e', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500 }}>
+                    <button onClick={() => setDeleteTarget(l)} className="admin-link-error" style={{ borderBottom: 'none' }}>
                       <Trash2 size={14} /> Eliminar
                     </button>
                   </div>
@@ -318,118 +325,113 @@ const LanzamientosPanel = () => {
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
             onClick={cerrarForm}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}
+            className="admin-modal-overlay"
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              initial={{ opacity: 0, scale: 0.97, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97, y: 10 }}
               transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
               onClick={(e) => e.stopPropagation()}
-              style={{ width: '90%', maxWidth: '460px', maxHeight: '85vh', overflowY: 'auto', background: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '2.5rem', zIndex: 301 }}
+              className="admin-modal"
+              style={{ maxWidth: '460px' }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                <h2 style={{ fontSize: '1.4rem', color: '#fff', fontFamily: 'var(--font-serif)', fontStyle: 'italic' }}>
-                  {editing ? (editing.estado === 'programado' ? 'Editar Lanzamiento' : 'Detalle del Lanzamiento') : 'Configurar Lanzamiento'}
+              <div className="admin-modal-head">
+                <h2 className="admin-modal-title">
+                  {editing ? (editing.estado === 'programado' ? 'Editar lanzamiento' : 'Detalle del lanzamiento') : 'Nuevo lanzamiento'}
                 </h2>
-                <button onClick={cerrarForm} style={{ color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer' }}><X size={22} /></button>
+                <button onClick={cerrarForm} className="admin-modal-close" aria-label="Cerrar"><X size={22} /></button>
               </div>
 
               {editing && editing.estado !== 'programado' && (
-                <p style={{ color: '#f59e0b', fontSize: '0.82rem', marginBottom: '1.5rem' }}>
+                <p style={{ color: 'var(--gold)', fontSize: '0.82rem', marginBottom: '1.5rem' }}>
                   Este lanzamiento ya se publicó en el catálogo y no se puede editar.
                 </p>
               )}
 
-              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.35rem' }}>
                 {[
                   { label: 'Nombre del lanzamiento', value: nombreLanzamiento, set: setNombreLanzamiento, placeholder: 'Ej: Lanzamiento 3', type: 'text' },
                   { label: 'Nombre del producto', value: nombreProducto, set: setNombreProducto, placeholder: 'Ej: Oversized Buddha Tee', type: 'text' },
                 ].map(({ label, value, set, placeholder, type }) => (
-                  <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>{label}</label>
+                  <label key={label} className="admin-field">
+                    <span>{label}</span>
                     <input
                       type={type} value={value} placeholder={placeholder}
                       onChange={(e) => set(e.target.value)}
                       disabled={editing && editing.estado !== 'programado'}
-                      style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: 'white', padding: '0.75rem 1rem', fontSize: '0.95rem' }}
                     />
-                  </div>
+                  </label>
                 ))}
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>Precio (COP)</label>
+                <label className="admin-field">
+                  <span>Precio (COP)</span>
                   <input
                     type="number" min="1" value={precio}
                     onChange={(e) => setPrecio(e.target.value)}
                     disabled={editing && editing.estado !== 'programado'}
-                    style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: 'white', padding: '0.75rem 1rem', fontSize: '0.95rem' }}
                   />
-                </div>
+                </label>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>Fecha y hora de lanzamiento (hora Colombia)</label>
+                <label className="admin-field">
+                  <span>Fecha y hora de lanzamiento (hora Colombia)</span>
                   <input
                     type="datetime-local" value={fechaLocal}
                     onChange={(e) => setFechaLocal(e.target.value)}
                     disabled={editing && editing.estado !== 'programado'}
-                    style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: 'white', padding: '0.75rem 1rem', fontSize: '0.95rem', colorScheme: 'dark' }}
+                    style={{ colorScheme: 'dark' }}
                   />
-                </div>
+                </label>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Detalle (frase corta)</span>
-                    <span>{detalle.length}/{DETALLE_MAX}</span>
-                  </label>
+                <label className="admin-field">
+                  <span style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Detalle (frase corta)</span><span style={{ color: 'var(--text-dim)' }}>{detalle.length}/{DETALLE_MAX}</span>
+                  </span>
                   <input
                     type="text" value={detalle} maxLength={DETALLE_MAX}
                     placeholder="Ej: Edición limitada, tela premium"
                     onChange={(e) => setDetalle(e.target.value)}
                     disabled={editing && editing.estado !== 'programado'}
-                    style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: 'white', padding: '0.75rem 1rem', fontSize: '0.95rem' }}
                   />
-                </div>
+                </label>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>Descripción</label>
+                <label className="admin-field">
+                  <span>Descripción</span>
                   <textarea
                     value={descripcion} rows={4}
                     onChange={(e) => setDescripcion(e.target.value)}
                     disabled={editing && editing.estado !== 'programado'}
                     placeholder="Descripción completa del producto"
-                    style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: 'white', padding: '0.75rem 1rem', fontSize: '0.9rem', fontFamily: 'inherit', resize: 'vertical' }}
                   />
-                </div>
+                </label>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>Tallas</label>
+                <div className="admin-field">
+                  <span>Tallas</span>
                   <TallasEditor tallas={tallas} onChange={(editing && editing.estado !== 'programado') ? () => {} : setTallas} />
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>Sección (opcional)</label>
+                <label className="admin-field">
+                  <span>Sección (opcional)</span>
                   <select
                     value={seccionId}
                     onChange={(e) => setSeccionId(e.target.value)}
                     disabled={editing && editing.estado !== 'programado'}
-                    style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: 'white', padding: '0.75rem 1rem', fontSize: '0.95rem' }}
                   >
                     <option value="">Sin sección</option>
                     {secciones.map((s) => (
                       <option key={s.id} value={s.id}>{s.nombre}</option>
                     ))}
                   </select>
-                </div>
+                </label>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>Imágenes (JPG o PNG, puedes elegir varias)</label>
+                <div className="admin-field">
+                  <span>Imágenes (JPG o PNG, puedes elegir varias)</span>
                   <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png" multiple onChange={handleFileChange} style={{ display: 'none' }} />
                   <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     {imagenes.map((img) => (
                       <div key={img.key} style={{ position: 'relative' }}>
-                        <img src={img.url} alt="Vista previa" style={{ width: '60px', height: '75px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #334155', display: 'block' }} />
+                        <img src={img.url} alt="Vista previa" style={{ width: '60px', height: '75px', objectFit: 'cover', border: '1px solid var(--border-strong)', display: 'block' }} />
                         {imagenes.length > 1 && (!editing || editing.estado === 'programado') && (
                           <button type="button" onClick={() => quitarImagen(img.key)} aria-label="Quitar esta imagen"
-                            style={{ position: 'absolute', top: '-6px', right: '-6px', width: '18px', height: '18px', borderRadius: '50%', background: '#f43f5e', border: '1px solid #1e293b', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>
+                            style={{ position: 'absolute', top: '-7px', right: '-7px', width: '19px', height: '19px', borderRadius: '50%', background: 'var(--error)', border: '1px solid var(--bg-secondary)', color: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>
                             <X size={11} />
                           </button>
                         )}
@@ -437,28 +439,27 @@ const LanzamientosPanel = () => {
                     ))}
                     {(!editing || editing.estado === 'programado') && (
                       <button type="button" onClick={() => fileInputRef.current?.click()}
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#0f172a', color: 'white', padding: '0.65rem 1rem', borderRadius: '8px', border: '1px solid #334155', cursor: 'pointer', fontSize: '0.8rem' }}>
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-primary)', color: 'var(--text-primary)', padding: '0.65rem 1rem', border: '1px solid var(--border-strong)', cursor: 'pointer', fontSize: '0.76rem', fontFamily: 'var(--font-sans)' }}>
                         <ImagePlus size={15} /> Agregar imágenes
                       </button>
                     )}
                   </div>
                 </div>
 
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: '#e2e8f0', fontSize: '0.85rem', cursor: 'pointer' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: 'var(--text-secondary)', fontSize: '0.85rem', cursor: 'pointer' }}>
                   <input
                     type="checkbox" checked={activoEnHome}
                     onChange={(e) => setActivoEnHome(e.target.checked)}
-                    style={{ width: '16px', height: '16px', accentColor: '#3b82f6' }}
+                    style={{ width: '16px', height: '16px', accentColor: 'var(--gold)' }}
                   />
-                  Activar en el Home (muestra este lanzamiento en la portada)
+                  Activar en el home (muestra este lanzamiento en la portada)
                 </label>
 
-                {formError && <p style={{ color: '#f87171', fontSize: '0.85rem' }}>{formError}</p>}
+                {formError && <p className="admin-error">{formError}</p>}
 
                 {(!editing || editing.estado === 'programado') && (
-                  <button type="submit" disabled={saving}
-                    style={{ marginTop: '0.5rem', padding: '0.9rem', background: saving ? '#334155' : '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '0.9rem', fontWeight: 500 }}>
-                    {saving ? 'Guardando...' : editing ? 'Guardar Cambios' : 'Crear Lanzamiento'}
+                  <button type="submit" disabled={saving} className="premium-button" style={{ marginTop: '0.5rem', opacity: saving ? 0.6 : 1, cursor: saving ? 'not-allowed' : 'pointer' }}>
+                    {saving ? 'Guardando…' : editing ? 'Guardar cambios' : 'Crear lanzamiento'}
                   </button>
                 )}
               </form>
@@ -474,35 +475,33 @@ const LanzamientosPanel = () => {
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
             onClick={() => !deleting && setDeleteTarget(null)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}
+            className="admin-modal-overlay"
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              initial={{ opacity: 0, scale: 0.97, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97, y: 10 }}
               transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
               onClick={(e) => e.stopPropagation()}
-              style={{ width: '90%', maxWidth: '380px', background: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '2.25rem', zIndex: 301, textAlign: 'center' }}
+              className="admin-confirm-modal"
             >
-              <Trash2 size={28} color="#f43f5e" style={{ marginBottom: '1rem' }} />
-              <h3 style={{ color: '#fff', fontSize: '1.15rem', marginBottom: '0.75rem' }}>¿Eliminar este lanzamiento?</h3>
-              <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '2rem' }}>
+              <Trash2 size={28} color="var(--error)" style={{ marginBottom: '1rem' }} />
+              <h3 className="admin-confirm-title">¿Eliminar este lanzamiento?</h3>
+              <p className="admin-confirm-text">
                 "{deleteTarget.nombre_lanzamiento} — {deleteTarget.nombre_producto}" se eliminará junto con sus inscritos.
                 {deleteTarget.estado === 'lanzado' && ' El producto ya publicado en el catálogo NO se elimina.'}
                 {' '}Esta acción no se puede deshacer.
               </p>
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
-                <button onClick={() => setDeleteTarget(null)} disabled={deleting}
-                  style={{ flex: 1, padding: '0.75rem', background: 'transparent', border: '1px solid #334155', color: 'white', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}>
-                  Cancelar
-                </button>
-                <button onClick={confirmarEliminar} disabled={deleting}
-                  style={{ flex: 1, padding: '0.75rem', background: '#f43f5e', border: 'none', color: 'white', borderRadius: '8px', cursor: deleting ? 'not-allowed' : 'pointer', fontSize: '0.85rem', opacity: deleting ? 0.7 : 1 }}>
-                  {deleting ? 'Eliminando...' : 'Eliminar'}
+              <div className="admin-confirm-actions">
+                <button onClick={() => setDeleteTarget(null)} disabled={deleting} className="admin-confirm-cancel">Cancelar</button>
+                <button onClick={confirmarEliminar} disabled={deleting} className="admin-confirm-delete" style={{ opacity: deleting ? 0.7 : 1, cursor: deleting ? 'not-allowed' : 'pointer' }}>
+                  {deleting ? 'Eliminando…' : 'Eliminar'}
                 </button>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      <style>{ADMIN_STYLES}</style>
     </motion.div>
   );
 };

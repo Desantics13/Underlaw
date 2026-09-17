@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingCart, X, Plus, Minus } from 'lucide-react';
+import { ShoppingBag, X, Plus, Minus } from 'lucide-react';
 import { jsPDF } from "jspdf";
 import ProductImageCarousel from '../components/ProductImageCarousel';
 import QuickViewModal from '../components/QuickViewModal';
@@ -156,6 +156,23 @@ const Products = () => {
     };
 
     verificar();
+  }, []);
+
+  // Bloquea el scroll del body mientras el carrito o la vista rápida están abiertos.
+  useEffect(() => {
+    document.body.style.overflow = (isCartOpen || quickViewProduct) ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [isCartOpen, quickViewProduct]);
+
+  // Esc cierra lo que esté abierto (carrito o vista rápida).
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      setQuickViewProduct(null);
+      setIsCartOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   // Máximo que se puede comprar de una vez en esa talla (10 por defecto, o el
@@ -370,287 +387,306 @@ const Products = () => {
     }
   };
 
-  return (
-    <div className="products-page" style={{ paddingTop: '10rem', minHeight: '100vh', position: 'relative' }}>
-      <div className="container">
-        <header className="collection-header">
-          <div>
-            <h1 className="font-serif italic collection-h1" style={{ marginBottom: '1rem' }}>Colección</h1>
-          </div>
-          <button 
-            onClick={() => setIsCartOpen(true)}
-            style={{ position: 'relative', padding: '0.5rem', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            <ShoppingCart size={28} strokeWidth={1.5} color="white" />
-            {cart.length > 0 && (
-              <span style={{ position: 'absolute', top: 0, right: 0, background: 'white', color: 'black', borderRadius: '50%', width: '20px', height: '20px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                {cart.reduce((acc, item) => acc + item.quantity, 0)}
-              </span>
-            )}
-          </button>
-        </header>
+  const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
+  const totalCarrito = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
-        {seccionesConProductos.length > 0 && (
-          <div className="seccion-tabs" role="tablist" aria-label="Secciones de la colección">
-            <button
-              role="tab"
-              aria-selected={!seccionActivaObj}
-              onClick={() => cambiarSeccion(null)}
-              className={`seccion-tab ${!seccionActivaObj ? 'seccion-tab-activa' : ''}`}
-            >
-              Todo
+  return (
+    <div className="products-page">
+      <section className="collection-hero">
+        <div className="container">
+          <div className="collection-top">
+            <div>
+              <p className="eyebrow">Legacy of Luxury</p>
+              <h1 className="collection-h1">Colección</h1>
+            </div>
+            <button onClick={() => setIsCartOpen(true)} aria-label="Ver pedido" className="cart-btn">
+              <ShoppingBag size={22} strokeWidth={1.5} />
+              {totalItems > 0 && <span className="cart-badge">{totalItems}</span>}
             </button>
-            {seccionesConProductos.map((s) => {
-              const slug = slugify(s.nombre);
+          </div>
+
+          {seccionesConProductos.length > 0 && (
+            <div className="seccion-tabs" role="tablist" aria-label="Secciones de la colección">
+              <button
+                role="tab"
+                aria-selected={!seccionActivaObj}
+                onClick={() => cambiarSeccion(null)}
+                className={`seccion-tab ${!seccionActivaObj ? 'seccion-tab-activa' : ''}`}
+              >
+                Todo
+              </button>
+              {seccionesConProductos.map((s) => {
+                const slug = slugify(s.nombre);
+                return (
+                  <button
+                    key={s.id}
+                    role="tab"
+                    aria-selected={seccionActivaObj?.id === s.id}
+                    onClick={() => cambiarSeccion(slug)}
+                    className={`seccion-tab ${seccionActivaObj?.id === s.id ? 'seccion-tab-activa' : ''}`}
+                  >
+                    {s.nombre}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="products-grid">
+            {loadingProducts ? (
+              <p style={{ color: 'var(--text-muted)' }}>Cargando colección...</p>
+            ) : productosVisibles.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)' }}>Aún no hay productos disponibles. Vuelve pronto.</p>
+            ) : productosVisibles.map((product, index) => {
+              const disponible = product.estado !== 'suspendido';
+              const tallasTexto = !disponible ? 'Sin stock' : (product.tallas.map((t) => t.talla).join(' · ') || '');
               return (
-                <button
-                  key={s.id}
-                  role="tab"
-                  aria-selected={seccionActivaObj?.id === s.id}
-                  onClick={() => cambiarSeccion(slug)}
-                  className={`seccion-tab ${seccionActivaObj?.id === s.id ? 'seccion-tab-activa' : ''}`}
+                <motion.div
+                  key={product.id}
+                  initial={{ opacity: 0, y: 22 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: '0px 0px -10% 0px' }}
+                  transition={{ duration: 0.7, delay: (index % 3) * 0.1, ease: [0.16, 1, 0.3, 1] }}
+                  className="product-card"
                 >
-                  {s.nombre}
-                </button>
+                  <div className="product-media">
+                    {product.images.length > 0 ? (
+                      <ProductImageCarousel
+                        images={product.images}
+                        alt={product.name}
+                        imgClassName="product-image"
+                        imgStyle={{ opacity: disponible ? 1 : 0.42 }}
+                      />
+                    ) : (
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: disponible ? 1 : 0.42 }}
+                        className="product-image"
+                      />
+                    )}
+                    <span className="product-tag" style={{ color: disponible ? 'var(--gold)' : 'var(--text-muted)' }}>
+                      {disponible ? (product.lanzamiento || 'Colección') : 'Agotado'}
+                    </span>
+                    <div className="product-overlay">
+                      <button
+                        onClick={() => disponible && setQuickViewProduct(product)}
+                        disabled={!disponible}
+                        className="premium-button"
+                        style={{ width: '100%' }}
+                      >
+                        {disponible ? 'Ver producto' : 'No disponible'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="product-info-row">
+                    <div>
+                      <p className="product-name">{product.name}</p>
+                      {tallasTexto && <p className="product-tallas">{tallasTexto}</p>}
+                    </div>
+                    <p className="product-price tabular">${product.price.toLocaleString('es-CO')} COP</p>
+                  </div>
+                </motion.div>
               );
             })}
           </div>
-        )}
-
-        <div className="products-grid">
-          {loadingProducts ? (
-            <p style={{ color: 'var(--text-muted)' }}>Cargando colección...</p>
-          ) : productosVisibles.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)' }}>Aún no hay productos disponibles. Vuelve pronto.</p>
-          ) : productosVisibles.map((product, index) => {
-            const disponible = product.estado !== 'suspendido';
-            return (
-            <motion.div
-              key={product.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.2 }}
-              className="product-card"
-            >
-              <div className="premium-card" style={{ position: 'relative', marginBottom: '1.5rem', aspectRatio: '3/4', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0c0c0c', overflow: 'hidden' }}>
-                {product.images.length > 0 ? (
-                  <ProductImageCarousel
-                    images={product.images}
-                    alt={product.name}
-                    imgClassName="product-image"
-                    imgStyle={{ transition: 'transform 0.6s ease', opacity: disponible ? 1 : 0.4 }}
-                  />
-                ) : (
-                  <img
-                    src={product.image}
-                    alt={product.name}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.6s ease', opacity: disponible ? 1 : 0.4 }}
-                    className="product-image"
-                  />
-                )}
-                {disponible ? (
-                  <div className="card-overlay" style={{ position: 'absolute', bottom: '1.5rem', left: '1.5rem', right: '1.5rem', opacity: 0, transition: 'var(--transition)' }}>
-                    <button onClick={() => setQuickViewProduct(product)} className="premium-button" style={{ width: '100%', padding: '1rem' }}>Ver producto</button>
-                  </div>
-                ) : (
-                  <div style={{ position: 'absolute', top: '1rem', left: '1rem', background: 'rgba(0,0,0,0.85)', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '0.4rem 0.8rem' }}>
-                    No disponible
-                  </div>
-                )}
-              </div>
-              {product.lanzamiento && (
-                <p style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>{product.lanzamiento}</p>
-              )}
-              <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', fontWeight: '400' }}>{product.name}</h3>
-              <p style={{ fontSize: '1.1rem', fontWeight: '300' }}>${product.price.toLocaleString('es-CO')} COP</p>
-            </motion.div>
-            );
-          })}
         </div>
-      </div>
+      </section>
+
+      {/* ── Franja de info ── */}
+      <section className="info-strip">
+        <div className="container info-grid">
+          {[['Envío', '2 a 5 días hábiles'], ['Cambios', '5 días para talla'], ['Pago', 'Tarjeta, PSE y Nequi'], ['Serie', '50 por drop']].map(([k, v]) => (
+            <div key={k} className="info-cell">
+              <p className="info-cell-label">{k}</p>
+              <p className="info-cell-value">{v}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* Cart Sidebar */}
       <AnimatePresence>
         {isCartOpen && (
           <>
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsCartOpen(false)}
-              style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', zIndex: 100 }}
+              className="drawer-scrim"
             />
-            <motion.div 
+            <motion.div
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              style={{ position: 'fixed', top: 0, right: 0, width: '100%', maxWidth: '450px', height: '100%', background: 'var(--bg-secondary)', zIndex: 101, padding: '3rem 2rem', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}
+              className="drawer"
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexShrink: 0 }}>
-                <h2 className="font-serif italic" style={{ fontSize: '2rem' }}>
-                  {checkoutStep === 'cart' ? 'Tu Carrito' : checkoutStep === 'info' ? 'Tus Datos' : checkoutStep === 'address' ? 'Dirección de Envío' : checkoutStep === 'payment' ? 'Pago' : checkoutStep === 'verificando' ? 'Verificando Pago' : checkoutStep === 'declined' ? 'Pago no completado' : '¡Gracias!'}
-                </h2>
-                <button onClick={() => { setIsProcessing(false); setIsCartOpen(false); setTimeout(() => setCheckoutStep('cart'), 500); }}><X size={24} /></button>
+              <div className="drawer-head">
+                <span className="eyebrow">
+                  {checkoutStep === 'cart' ? 'Expediente — Pedido' : checkoutStep === 'info' ? 'Tus datos' : checkoutStep === 'address' ? 'Dirección de envío' : checkoutStep === 'payment' ? 'Pago' : checkoutStep === 'verificando' ? 'Verificando pago' : checkoutStep === 'declined' ? 'Pago no completado' : 'Gracias'}
+                </span>
+                <button onClick={() => { setIsProcessing(false); setIsCartOpen(false); setTimeout(() => setCheckoutStep('cart'), 500); }} aria-label="Cerrar" style={{ color: 'var(--text-primary)' }}><X size={22} /></button>
               </div>
 
               {checkoutStep === 'cart' && (
                 cart.length === 0 ? (
-                  <div style={{ textAlign: 'center', marginTop: '5rem', flex: 1 }}>
+                  <div className="drawer-empty">
                     <p style={{ color: 'var(--text-muted)' }}>Tu carrito está vacío.</p>
+                    <button onClick={() => setIsCartOpen(false)} className="cta-outline">Ver la colección</button>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2rem', paddingRight: '1rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+                    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingRight: '0.5rem' }}>
                       {cart.map(item => (
-                        <div key={item.id} style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
-                          <img src={item.image} alt={item.name} style={{ width: '80px', background: '#0c0c0c' }} />
-                          <div style={{ flex: 1 }}>
-                            <p style={{ fontSize: '1rem', marginBottom: '0.2rem' }}>{item.name}</p>
-                            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>${item.price.toLocaleString('es-CO')} COP</p>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                              <button onClick={() => updateQuantity(item.id, -1)} style={{ padding: '4px', border: '1px solid var(--border)', color: 'white' }}><Minus size={14} /></button>
-                              <span style={{ color: 'white' }}>{item.quantity}</span>
+                        <div key={item.id} className="drawer-item" style={{ marginBottom: 0, paddingBottom: 0, border: 'none' }}>
+                          <img src={item.image} alt={item.name} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: '1.05rem', fontFamily: 'var(--font-serif)' }}>{item.name}</p>
+                            <p className="tabular" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.2rem 0 0.75rem' }}>{item.talla ? `Talla ${item.talla} · ` : ''}${item.price.toLocaleString('es-CO')} COP</p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                              <button onClick={() => updateQuantity(item.id, -1)} className="stepper-btn"><Minus size={12} /></button>
+                              <span style={{ fontSize: '0.9rem' }}>{item.quantity}</span>
                               <button
                                 onClick={() => updateQuantity(item.id, 1)}
                                 disabled={item.quantity >= maxCompraDe(item)}
-                                style={{ padding: '4px', border: '1px solid var(--border)', color: 'white', opacity: item.quantity >= maxCompraDe(item) ? 0.4 : 1, cursor: item.quantity >= maxCompraDe(item) ? 'not-allowed' : 'pointer' }}
-                              ><Plus size={14} /></button>
+                                className="stepper-btn"
+                                style={{ opacity: item.quantity >= maxCompraDe(item) ? 0.4 : 1, cursor: item.quantity >= maxCompraDe(item) ? 'not-allowed' : 'pointer' }}
+                              ><Plus size={12} /></button>
                             </div>
                           </div>
                         </div>
                       ))}
                     </div>
-                    
-                    <div style={{ flexShrink: 0, paddingTop: '2rem', borderTop: '1px solid var(--border)', marginTop: '1rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem', fontSize: '1.2rem' }}>
+
+                    <div style={{ flexShrink: 0, paddingTop: '1.5rem', borderTop: '1px solid var(--border-soft)', marginTop: '1.5rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', fontSize: '1.05rem' }}>
                         <span>Total</span>
-                        <span>${(cart.reduce((acc, item) => acc + (item.price * item.quantity), 0)).toLocaleString('es-CO')} COP</span>
+                        <span className="tabular">${totalCarrito.toLocaleString('es-CO')} COP</span>
                       </div>
-                      <button className="premium-button" onClick={() => setCheckoutStep('info')} style={{ width: '100%', padding: '1.2rem' }}>Finalizar Pedido</button>
+                      <button className="premium-button" onClick={() => setCheckoutStep('info')} style={{ width: '100%' }}>Finalizar pedido</button>
                     </div>
                   </div>
                 )
               )}
 
               {checkoutStep === 'info' && (
-                <form onSubmit={(e) => { e.preventDefault(); setCheckoutStep('address'); }} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', flex: 1, overflowY: 'auto', paddingRight: '1rem', paddingBottom: '2rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Nombre</label>
-                        <input type="text" name="name" required value={formData.name} onChange={handleInputChange} style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'white', padding: '0.5rem 0' }} />
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Apellido</label>
-                        <input type="text" name="lastName" required value={formData.lastName} onChange={handleInputChange} style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'white', padding: '0.5rem 0' }} />
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Documento (CC)</label>
-                      <input type="text" name="doc" required value={formData.doc} onChange={handleInputChange} style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'white', padding: '0.5rem 0' }} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Teléfono</label>
-                      <input type="tel" name="phone" required value={formData.phone} onChange={handleInputChange} style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'white', padding: '0.5rem 0' }} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Correo Electrónico</label>
-                      <input type="email" name="email" required value={formData.email} onChange={handleInputChange} style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'white', padding: '0.5rem 0' }} />
-                    </div>
+                <form onSubmit={(e) => { e.preventDefault(); setCheckoutStep('address'); }} className="drawer-form" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <label className="drawer-field">
+                      <span>Nombre</span>
+                      <input type="text" name="name" required value={formData.name} onChange={handleInputChange} />
+                    </label>
+                    <label className="drawer-field">
+                      <span>Apellido</span>
+                      <input type="text" name="lastName" required value={formData.lastName} onChange={handleInputChange} />
+                    </label>
                   </div>
-                  
-                  <div style={{ flexShrink: 0, paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
-                    <button type="submit" className="premium-button" style={{ width: '100%', padding: '1.2rem' }}>Continuar Proceso</button>
-                    <button type="button" onClick={() => setCheckoutStep('cart')} style={{ width: '100%', padding: '1rem', background: 'transparent', border: 'none', color: 'var(--text-muted)', marginTop: '0.5rem', cursor: 'pointer' }}>Volver al Carrito</button>
+                  <label className="drawer-field">
+                    <span>Documento (CC)</span>
+                    <input type="text" name="doc" required value={formData.doc} onChange={handleInputChange} />
+                  </label>
+                  <label className="drawer-field">
+                    <span>Teléfono</span>
+                    <input type="tel" name="phone" required value={formData.phone} onChange={handleInputChange} />
+                  </label>
+                  <label className="drawer-field">
+                    <span>Correo electrónico</span>
+                    <input type="email" name="email" required value={formData.email} onChange={handleInputChange} />
+                  </label>
+
+                  <div className="drawer-form-footer">
+                    <button type="submit" className="premium-button" style={{ width: '100%' }}>Continuar proceso</button>
+                    <button type="button" onClick={() => setCheckoutStep('cart')} className="drawer-link">Volver al carrito</button>
                   </div>
                 </form>
               )}
 
               {checkoutStep === 'address' && (
-                <form onSubmit={(e) => { e.preventDefault(); setCheckoutStep('payment'); }} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', flex: 1, overflowY: 'auto', paddingRight: '1rem', paddingBottom: '2rem' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>País</label>
-                      <input type="text" name="pais" required value={formData.pais} onChange={handleInputChange} style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'white', padding: '0.5rem 0' }} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Municipio</label>
-                      <input type="text" name="municipio" required value={formData.municipio} onChange={handleInputChange} style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'white', padding: '0.5rem 0' }} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Ciudad</label>
-                      <input type="text" name="ciudad" required value={formData.ciudad} onChange={handleInputChange} style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'white', padding: '0.5rem 0' }} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Dirección</label>
-                      <input type="text" name="direccion" required value={formData.direccion} onChange={handleInputChange} style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'white', padding: '0.5rem 0' }} />
-                    </div>
-                  </div>
+                <form onSubmit={(e) => { e.preventDefault(); setCheckoutStep('payment'); }} className="drawer-form" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+                  <label className="drawer-field">
+                    <span>País</span>
+                    <input type="text" name="pais" required value={formData.pais} onChange={handleInputChange} />
+                  </label>
+                  <label className="drawer-field">
+                    <span>Municipio</span>
+                    <input type="text" name="municipio" required value={formData.municipio} onChange={handleInputChange} />
+                  </label>
+                  <label className="drawer-field">
+                    <span>Ciudad</span>
+                    <input type="text" name="ciudad" required value={formData.ciudad} onChange={handleInputChange} />
+                  </label>
+                  <label className="drawer-field">
+                    <span>Dirección</span>
+                    <input type="text" name="direccion" required value={formData.direccion} onChange={handleInputChange} />
+                  </label>
 
-                  <div style={{ flexShrink: 0, paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
-                    <button type="submit" className="premium-button" style={{ width: '100%', padding: '1.2rem' }}>Continuar al Pago</button>
-                    <button type="button" onClick={() => setCheckoutStep('info')} style={{ width: '100%', padding: '1rem', background: 'transparent', border: 'none', color: 'var(--text-muted)', marginTop: '0.5rem', cursor: 'pointer' }}>Volver atrás</button>
+                  <div className="drawer-form-footer">
+                    <button type="submit" className="premium-button" style={{ width: '100%' }}>Continuar al pago</button>
+                    <button type="button" onClick={() => setCheckoutStep('info')} className="drawer-link">Volver atrás</button>
                   </div>
                 </form>
               )}
 
               {checkoutStep === 'payment' && (
-                <form onSubmit={handleWompiPayment} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', flex: 1, overflowY: 'auto', paddingRight: '1rem', paddingBottom: '2rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem' }}>
+                <form onSubmit={handleWompiPayment} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', flex: 1, overflowY: 'auto' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.05rem' }}>
                       <span>Total a pagar</span>
-                      <span>${(cart.reduce((acc, item) => acc + (item.price * item.quantity), 0)).toLocaleString('es-CO')} COP</span>
+                      <span className="tabular">${totalCarrito.toLocaleString('es-CO')} COP</span>
                     </div>
-                    {paymentError && (
-                      <p style={{ color: '#f87171', fontSize: '0.85rem' }}>{paymentError}</p>
-                    )}
+                    <div className="payment-summary">
+                      {cart.map((item) => (
+                        <div key={item.id} className="payment-summary-row">
+                          <span>{item.name}{item.talla ? ` · Talla ${item.talla}` : ''} × {item.quantity}</span>
+                          <span className="tabular" style={{ color: 'var(--text-primary)' }}>${(item.price * item.quantity).toLocaleString('es-CO')}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-dim)', lineHeight: 1.7, margin: 0 }}>Al continuar se abre el widget seguro de Wompi (tarjeta, PSE o Nequi). El pago lo procesa Wompi, no esta página.</p>
+                    {paymentError && <p style={{ color: 'var(--error)', fontSize: '0.85rem', margin: 0 }}>{paymentError}</p>}
                   </div>
 
-                  <div style={{ flexShrink: 0, paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
-                    <button type="submit" disabled={isProcessing} className="premium-button" style={{ width: '100%', padding: '1.2rem', opacity: isProcessing ? 0.6 : 1, cursor: isProcessing ? 'not-allowed' : 'pointer' }}>
-                      {isProcessing ? 'Abriendo pago seguro...' : 'Pagar con Wompi'}
+                  <div className="drawer-form-footer">
+                    <button type="submit" disabled={isProcessing} className="premium-button" style={{ width: '100%', opacity: isProcessing ? 0.6 : 1, cursor: isProcessing ? 'not-allowed' : 'pointer' }}>
+                      {isProcessing ? 'Abriendo pago seguro…' : 'Pagar con Wompi'}
                     </button>
-                    <button type="button" onClick={() => setCheckoutStep('address')} style={{ width: '100%', padding: '1rem', background: 'transparent', border: 'none', color: 'var(--text-muted)', marginTop: '0.5rem', cursor: 'pointer' }}>Volver atrás</button>
+                    <button type="button" onClick={() => setCheckoutStep('address')} className="drawer-link">Volver atrás</button>
                   </div>
                 </form>
               )}
 
               {checkoutStep === 'verificando' && (
-                <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 'calc(100% - 100px)' }}>
-                  <div style={{ width: '60px', height: '60px', borderRadius: '50%', border: '2px solid var(--border)', borderTopColor: 'white', marginBottom: '2rem', animation: 'spin 0.8s linear infinite' }} />
-                  <h3 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>Verificando tu pago...</h3>
-                  <p style={{ color: 'var(--text-muted)' }}>Esto solo toma unos segundos. No cierres esta ventana.</p>
+                <div className="drawer-status">
+                  <span className="drawer-spinner" />
+                  <h3 className="drawer-status-title">Verificando tu pago…</h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Esto solo toma unos segundos. No cierres esta ventana.</p>
                 </div>
               )}
 
               {checkoutStep === 'declined' && (
-                <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 'calc(100% - 100px)' }}>
-                  <div style={{ width: '60px', height: '60px', borderRadius: '50%', border: '2px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '2rem' }}>
-                    <X size={28} />
-                  </div>
-                  <h3 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>Pago no completado</h3>
-                  <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>
+                <div className="drawer-status">
+                  <span className="drawer-status-icon drawer-status-icon-error">✕</span>
+                  <h3 className="drawer-status-title">Pago no completado</h3>
+                  <p style={{ color: 'var(--text-tertiary)', lineHeight: 1.7, maxWidth: '32ch' }}>
                     {declineStatus
                       ? `Tu pago no fue aprobado (estado: ${declineStatus}).`
                       : 'Cerraste la ventana de pago antes de completarlo.'} Tu carrito sigue disponible, no se hizo ningún cargo.
                   </p>
-                  <div style={{ display: 'flex', gap: '1rem' }}>
-                    <button onClick={() => { setDeclineStatus(''); setCheckoutStep('payment'); }} className="premium-button" style={{ padding: '1rem 2rem' }}>Intentar de nuevo</button>
-                    <button onClick={() => { setIsCartOpen(false); setTimeout(() => setCheckoutStep('cart'), 500); }} style={{ padding: '1rem 2rem', background: 'transparent', border: '1px solid var(--border)', color: 'white', cursor: 'pointer' }}>Seguir navegando</button>
+                  <div style={{ display: 'flex', gap: '0.75rem', width: '100%' }}>
+                    <button onClick={() => { setDeclineStatus(''); setCheckoutStep('payment'); }} className="premium-button" style={{ flex: 1 }}>Intentar de nuevo</button>
+                    <button onClick={() => { setIsCartOpen(false); setTimeout(() => setCheckoutStep('cart'), 500); }} className="cta-outline" style={{ flex: 1, textAlign: 'center' }}>Seguir navegando</button>
                   </div>
                 </div>
               )}
 
               {checkoutStep === 'success' && (
-                <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 'calc(100% - 100px)' }}>
-                  <div style={{ width: '60px', height: '60px', borderRadius: '50%', border: '2px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '2rem' }}>
-                    <span style={{ fontSize: '2rem' }}>✓</span>
-                  </div>
-                  <h3 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>¡Pago Exitoso!</h3>
-                  <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>Tu factura en PDF ha sido generada y descargada. Te enviamos un comprobante al correo: {formData.email}</p>
-                  <button onClick={() => { setIsCartOpen(false); setTimeout(() => setCheckoutStep('cart'), 500); }} className="premium-button" style={{ padding: '1rem 3rem' }}>Cerrar</button>
+                <div className="drawer-status">
+                  <span className="drawer-status-icon drawer-status-icon-gold">✓</span>
+                  <h3 className="drawer-status-title">¡Pago exitoso!</h3>
+                  <p style={{ color: 'var(--text-tertiary)', lineHeight: 1.7, maxWidth: '32ch' }}>Tu factura en PDF ha sido generada y descargada. Te enviamos un comprobante al correo: {formData.email}</p>
+                  <button onClick={() => { setIsCartOpen(false); setTimeout(() => setCheckoutStep('cart'), 500); }} className="premium-button" style={{ padding: '0.95rem 2.5rem' }}>Cerrar</button>
                 </div>
               )}
             </motion.div>
@@ -672,66 +708,100 @@ const Products = () => {
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
-        .product-card:hover .product-image { transform: scale(1.05); }
-        .product-card:hover .card-overlay { opacity: 1 !important; transform: translateY(-10px); }
+
+        .collection-hero { padding: clamp(2.5rem, 7vw, 5rem) 0 clamp(3rem, 7vw, 5rem); }
+        .collection-top {
+          display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;
+          margin-bottom: clamp(1.75rem, 4vw, 2.5rem);
+        }
+        .collection-h1 {
+          font-weight: 300; font-size: clamp(2.6rem, 9vw, 6rem); line-height: 0.92; letter-spacing: -0.03em; margin-top: 0.75rem;
+        }
+        .cart-btn {
+          position: relative; color: var(--text-primary); display: flex; padding: 0.5rem; flex-shrink: 0; margin-top: 0.5rem;
+        }
+        .cart-badge {
+          position: absolute; top: 0; right: 0; background: var(--gold); color: var(--bg-primary);
+          border-radius: 50%; width: 18px; height: 18px; font-size: 0.65rem; display: flex;
+          align-items: center; justify-content: center; font-weight: 500;
+        }
+
+        .seccion-tabs { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: clamp(1.75rem, 4vw, 2.75rem); }
+        .seccion-tab {
+          font-family: var(--font-serif); font-style: italic; font-size: 0.95rem;
+          padding: 0.55rem 1.3rem; cursor: pointer; white-space: nowrap;
+          background: transparent; color: var(--text-muted); border: 1px solid var(--border-strong);
+          transition: var(--transition);
+        }
+        .seccion-tab-activa { background: var(--text-primary); color: var(--bg-primary); border-color: var(--text-primary); }
 
         .products-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-          gap: 4rem;
+          grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+          gap: clamp(1.5rem, 3vw, 2.75rem);
         }
-        .collection-header {
-          margin-bottom: 5rem;
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-end;
+        .product-media {
+          position: relative; overflow: hidden; background: var(--bg-tertiary);
+          border: 1px solid var(--border); aspect-ratio: 3/4;
         }
-        .collection-h1 {
-          font-size: 4rem;
+        .product-image { transition: transform 0.9s cubic-bezier(.16,1,.3,1); width: 100%; height: 100%; object-fit: cover; display: block; }
+        .product-card:hover .product-image { transform: scale(1.05); }
+        .product-tag {
+          position: absolute; top: 0.7rem; left: 0.7rem; font-size: 0.56rem; text-transform: uppercase;
+          letter-spacing: 0.18em; background: rgba(6,6,6,0.82); padding: 0.32rem 0.6rem;
         }
-        .seccion-tabs {
-          display: flex;
-          gap: 0.5rem;
-          margin: -3rem 0 3rem;
-          overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
-          scrollbar-width: none;
+        .product-overlay {
+          position: absolute; bottom: 1rem; left: 1rem; right: 1rem;
+          opacity: 0; transform: translateY(10px); transition: all 0.45s cubic-bezier(.16,1,.3,1);
         }
-        .seccion-tabs::-webkit-scrollbar { display: none; }
-        .seccion-tab {
-          flex-shrink: 0;
-          font-family: var(--font-serif);
-          font-style: italic;
-          background: transparent;
-          border: 1px solid var(--border);
-          color: var(--text-muted);
-          padding: 0.6rem 1.4rem;
-          cursor: pointer;
-          font-size: 0.95rem;
-          white-space: nowrap;
-          transition: var(--transition);
+        .product-card:hover .product-overlay { opacity: 1; transform: translateY(0); }
+        .product-info-row { display: flex; justify-content: space-between; gap: 1rem; margin-top: 0.9rem; }
+        .product-name { margin: 0; font-family: var(--font-serif); font-size: 1.1rem; }
+        .product-tallas { margin: 0.25rem 0 0; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.18em; color: var(--text-muted); }
+        .product-price { margin: 0; font-size: 0.88rem; white-space: nowrap; }
+
+        .info-strip { background: var(--bg-light); color: var(--text-on-light); padding: clamp(2.5rem, 6vw, 4rem) 0; }
+        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 1px; background: var(--border-light); }
+        .info-cell { background: var(--bg-light); padding: 1.5rem 1.25rem; }
+        .info-cell-label { margin: 0; font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.2em; color: var(--text-dim); }
+        .info-cell-value { margin: 0.55rem 0 0; font-family: var(--font-serif); font-size: 1.3rem; color: var(--text-on-light); }
+
+        .drawer-scrim { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100; }
+        .drawer {
+          position: fixed; top: 0; right: 0; bottom: 0; width: 100%; max-width: 430px;
+          background: var(--bg-tertiary); z-index: 101; padding: clamp(1.25rem, 4vw, 2rem);
+          border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden;
         }
-        .seccion-tab-activa {
-          background: white;
-          color: black;
-          border-color: white;
+        .drawer-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-shrink: 0; }
+        .drawer-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 1.25rem; }
+        .drawer-item { display: flex; gap: 1.25rem; align-items: center; }
+        .drawer-item img { width: 76px; aspect-ratio: 3/4; object-fit: cover; background: var(--bg-primary); flex-shrink: 0; }
+        .stepper-btn { padding: 0.3rem; border: 1px solid var(--border-strong); background: none; color: var(--text-primary); cursor: pointer; display: flex; }
+        .drawer-form { display: flex; flex-direction: column; gap: 1.35rem; }
+        .drawer-field { display: flex; flex-direction: column; gap: 0.5rem; }
+        .drawer-field span { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.18em; color: var(--text-muted); }
+        .drawer-field input {
+          background: transparent; border: none; border-bottom: 1px solid var(--border-strong);
+          color: var(--text-primary); padding: 0.5rem 0; font-size: 0.95rem; font-family: var(--font-sans); outline: none;
         }
+        .drawer-form-footer { margin-top: auto; flex-shrink: 0; padding-top: 1rem; }
+        .drawer-link { width: 100%; padding: 0.9rem; background: none; border: none; color: var(--text-muted); font-family: inherit; font-size: 0.78rem; cursor: pointer; margin-top: 0.4rem; }
+        .payment-summary { display: grid; gap: 1px; background: var(--border); }
+        .payment-summary-row { background: var(--bg-tertiary); padding: 0.85rem 0; display: flex; justify-content: space-between; gap: 1rem; font-size: 0.85rem; color: var(--text-tertiary); }
+        .drawer-status { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 1.5rem; }
+        .drawer-status-title { font-family: var(--font-serif); font-style: italic; font-weight: 300; font-size: 1.4rem; margin: 0; }
+        .drawer-spinner {
+          width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--border-strong);
+          border-top-color: var(--gold); display: block; animation: spin 0.8s linear infinite;
+        }
+        .drawer-status-icon {
+          width: 58px; height: 58px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;
+        }
+        .drawer-status-icon-error { border: 1px solid var(--error); color: var(--error); }
+        .drawer-status-icon-gold { border: 1px solid var(--gold); color: var(--gold); }
+
         @media (max-width: 768px) {
-          .products-grid {
-            grid-template-columns: 1fr;
-            gap: 2.5rem;
-          }
-          .collection-header {
-            margin-bottom: 3rem;
-            flex-wrap: wrap;
-            gap: 1rem;
-          }
-          .collection-h1 {
-            font-size: 2.5rem !important;
-          }
-          .seccion-tabs {
-            margin: -1.5rem 0 2.5rem;
-          }
+          .products-grid { gap: 2rem; }
         }
       `}</style>
     </div>

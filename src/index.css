@@ -1,19 +1,35 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Jost:wght@300;400;500&display=swap');
 
 :root {
-  --bg-primary: #050505;
-  --bg-secondary: #0a0a0a;
-  --bg-tertiary: #111111;
-  --text-primary: #ffffff;
-  --text-secondary: #a1a1aa;
-  --text-muted: #71717a;
-  --accent: #ffffff;
-  --accent-soft: rgba(255, 255, 255, 0.1);
-  --border: rgba(255, 255, 255, 0.08);
-  
+  /* Negro carbón / Hueso / Acento dorado — ver design_handoff_rediseno_visual/README.md */
+  --bg-primary: #060606;
+  --bg-secondary: #0B0B0A;
+  --bg-tertiary: #0C0C0B;
+  --bg-light: #F4F2ED;
+  --text-primary: #F2F0EC;
+  --text-secondary: #CFC9BE;
+  --text-tertiary: #9B958A;
+  --text-muted: #8B857A;
+  --text-dim: #6B6558;
+  --text-on-light: #0F0F0E;
+  --text-on-light-muted: #4A463D;
+  --gold: #C0A15B;
+  --success: #7FA87F;
+  --warning: #C0A15B;
+  --error: #B5726E;
+  --border: rgba(242, 240, 236, 0.12);
+  --border-soft: rgba(242, 240, 236, 0.14);
+  --border-strong: rgba(242, 240, 236, 0.18);
+  --border-light: rgba(15, 15, 14, 0.16);
+
+  /* Alias retrocompatibles: hasta que Colección/Admin se migren al nuevo sistema */
+  --bronze: var(--gold);
+  --accent: var(--gold);
+  --accent-soft: rgba(192, 161, 91, 0.16);
+
   --font-serif: 'Cormorant Garamond', serif;
-  --font-sans: 'Inter', sans-serif;
-  
+  --font-sans: 'Jost', sans-serif;
+
   --transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -34,14 +50,31 @@ body {
 
 h1, h2, h3, h4, .font-serif {
   font-family: var(--font-serif);
-  font-weight: 400;
-  letter-spacing: -0.02em;
+  font-weight: 300;
+  letter-spacing: -0.01em;
+}
+
+.eyebrow {
+  font-family: var(--font-sans);
+  font-size: 0.66rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.26em;
+  color: var(--gold);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
 }
 
 a {
   text-decoration: none;
   color: inherit;
   transition: var(--transition);
+}
+
+a:hover {
+  color: var(--gold);
 }
 
 ul {
@@ -58,6 +91,19 @@ button {
 
 input:focus, select:focus, textarea:focus {
   outline: none;
+}
+
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--bronze);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Scrollbar */
@@ -101,29 +147,58 @@ input:focus, select:focus, textarea:focus {
 .premium-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
+  border-radius: 0;
   transition: var(--transition);
   overflow: hidden;
 }
 
 .premium-card:hover {
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--bronze);
   transform: translateY(-4px);
 }
 
 .premium-button {
-  padding: 0.75rem 1.5rem;
+  padding: 0.9rem 1.6rem;
   background: var(--text-primary);
+  border: none;
+  border-radius: 0;
   color: var(--bg-primary);
+  font-family: var(--font-sans);
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-size: 0.8rem;
+  letter-spacing: 0.18em;
+  font-size: 0.7rem;
   transition: var(--transition);
 }
 
 .premium-button:hover {
-  background: var(--text-secondary);
-  transform: scale(1.02);
+  opacity: 0.85;
+}
+
+.premium-button:disabled {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.cta-outline {
+  padding: 0.9rem 1.6rem;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: 0;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.7rem;
+  transition: var(--transition);
+  display: inline-block;
+}
+
+.cta-outline:hover {
+  border-color: var(--text-primary);
+  background: var(--accent-soft);
 }
 
 .section-title {

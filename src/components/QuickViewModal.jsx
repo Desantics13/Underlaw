@@ -49,7 +49,7 @@ const QuickViewModal = ({ product, onClose, onAddToCart }) => {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(10,8,6,0.82)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -60,35 +60,36 @@ const QuickViewModal = ({ product, onClose, onAddToCart }) => {
         role="dialog"
         aria-modal="true"
         aria-label={`Vista rápida de ${product.name}`}
-        style={{ width: '100%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto', background: 'var(--bg-secondary)', border: '1px solid var(--border)', position: 'relative' }}
+        style={{ width: '100%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto', background: 'var(--bg-tertiary)', border: '1px solid var(--border)', position: 'relative' }}
         className="quickview-modal"
       >
         <button
           onClick={onClose}
           aria-label="Cerrar vista rápida"
-          style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', zIndex: 3 }}
+          style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', zIndex: 3 }}
         >
-          <X size={24} />
+          <X size={22} />
         </button>
 
         <div className="quickview-grid">
-          <div className="quickview-image" style={{ position: 'relative', aspectRatio: '3/4', backgroundColor: '#0c0c0c', overflow: 'hidden' }}>
+          <div className="quickview-image" style={{ position: 'relative', aspectRatio: '3/4', backgroundColor: 'var(--bg-tertiary)', overflow: 'hidden' }}>
             <ProductImageCarousel images={images} alt={product.name} />
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', padding: '2.5rem' }}>
-            <h2 className="font-serif italic" style={{ fontSize: '1.8rem', marginBottom: '0.5rem' }}>{product.name}</h2>
+            <span className="eyebrow">{product.lanzamiento || 'Ficha de producto'}</span>
+            <h2 className="font-serif italic" style={{ fontSize: '1.8rem', margin: '0.5rem 0' }}>{product.name}</h2>
             {product.detalle && (
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>{product.detalle}</p>
             )}
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '2rem' }}>${product.price.toLocaleString('es-CO')} COP</p>
+            <p className="tabular" style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', marginBottom: '2rem' }}>${product.price.toLocaleString('es-CO')} COP</p>
 
             <div style={{ marginBottom: '2rem' }}>
-              <p style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>Talla</p>
+              <p className="eyebrow" style={{ marginBottom: '0.75rem' }}>Talla</p>
               {agotado ? (
-                <p style={{ fontSize: '0.85rem', color: '#f87171' }}>Agotado</p>
+                <p style={{ fontSize: '0.85rem', color: 'var(--error)' }}>Agotado</p>
               ) : (
-                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                   {tallas.map((item) => (
                     <button
                       key={item.talla}
@@ -97,11 +98,11 @@ const QuickViewModal = ({ product, onClose, onAddToCart }) => {
                       disabled={!item.disponible}
                       aria-pressed={talla === item.talla}
                       style={{
-                        minWidth: '2.75rem',
-                        padding: '0.6rem',
-                        border: `1px solid ${talla === item.talla ? 'white' : 'var(--border)'}`,
-                        background: talla === item.talla ? 'white' : 'transparent',
-                        color: !item.disponible ? 'var(--text-muted)' : (talla === item.talla ? 'black' : 'white'),
+                        minWidth: '2.9rem',
+                        padding: '0.65rem',
+                        border: `1px solid ${talla === item.talla ? 'var(--text-primary)' : 'var(--border-strong)'}`,
+                        background: talla === item.talla ? 'var(--text-primary)' : 'transparent',
+                        color: !item.disponible ? 'var(--text-muted)' : (talla === item.talla ? 'var(--bg-primary)' : 'var(--text-primary)'),
                         cursor: item.disponible ? 'pointer' : 'not-allowed',
                         textDecoration: item.disponible ? 'none' : 'line-through',
                         opacity: item.disponible ? 1 : 0.5,
@@ -116,23 +117,23 @@ const QuickViewModal = ({ product, onClose, onAddToCart }) => {
             </div>
 
             <div style={{ marginBottom: '2rem' }}>
-              <p style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>Cantidad</p>
+              <p className="eyebrow" style={{ marginBottom: '0.75rem' }}>Cantidad</p>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                 <button
                   type="button"
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                   aria-label="Disminuir cantidad"
-                  style={{ padding: '0.5rem', border: '1px solid var(--border)', color: 'white', background: 'transparent', cursor: 'pointer' }}
+                  style={{ padding: '0.5rem', border: '1px solid var(--border)', color: 'var(--text-primary)', background: 'transparent', cursor: 'pointer' }}
                 >
                   <Minus size={14} />
                 </button>
-                <span style={{ minWidth: '1.5rem', textAlign: 'center', color: 'white' }}>{quantity}</span>
+                <span style={{ minWidth: '1.5rem', textAlign: 'center', color: 'var(--text-primary)' }}>{quantity}</span>
                 <button
                   type="button"
                   onClick={() => setQuantity((q) => Math.min(maxCompra, q + 1))}
                   disabled={quantity >= maxCompra}
                   aria-label="Aumentar cantidad"
-                  style={{ padding: '0.5rem', border: '1px solid var(--border)', color: 'white', background: 'transparent', cursor: quantity >= maxCompra ? 'not-allowed' : 'pointer', opacity: quantity >= maxCompra ? 0.4 : 1 }}
+                  style={{ padding: '0.5rem', border: '1px solid var(--border)', color: 'var(--text-primary)', background: 'transparent', cursor: quantity >= maxCompra ? 'not-allowed' : 'pointer', opacity: quantity >= maxCompra ? 0.4 : 1 }}
                 >
                   <Plus size={14} />
                 </button>
@@ -151,7 +152,7 @@ const QuickViewModal = ({ product, onClose, onAddToCart }) => {
             )}
 
             {!agotado && !talla && (
-              <p style={{ fontSize: '0.75rem', color: '#f87171', marginBottom: '1rem' }}>Selecciona una talla para continuar.</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--gold)', marginBottom: '1rem' }}>Selecciona una talla para continuar.</p>
             )}
 
             <button

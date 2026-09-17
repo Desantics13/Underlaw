@@ -1,25 +1,40 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { X } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import buddhaModelImg from '../assets/buddha-model.jpg';
-import oversizedFirstImg from '../assets/oversized-first.jpg';
+import heroRacingImg from '../assets/hero-racing.jpeg';
+import heroEstacionImg from '../assets/hero-estacion.jpeg';
+import shirtBuddhaImg from '../assets/shirt-buddha.png';
 import { API_URL } from '../utils/adminApi';
 
-const featuredProducts = [
-  {
-    name: "Oversized Buddha Tee",
-    desc: "Nuestra pieza insignia. Diseñada para aquellos que viven bajo sus propias reglas. Confeccionada en algodón premium de 240gsm con un corte oversized perfecto.",
-    price: "$110.000 COP",
-    image: buddhaModelImg
-  },
-  {
-    name: "Oversized First",
-    desc: "La primera edición de nuestra colección Legacy of Luxury. Estilo urbano minimalista con un calce perfecto para cualquier ocasión.",
-    price: "$110.000 COP",
-    image: oversizedFirstImg
-  }
+// Fondo del hero: fotos + posición de encuadre para cada una. Rota cada
+// DURACION_HERO ms con fundido cruzado y ligero zoom mientras está activa.
+const FONDO_HERO = [
+  { src: buddhaModelImg, posicion: 'center 22%' },
+  { src: heroRacingImg, posicion: 'center 38%' },
+  { src: heroEstacionImg, posicion: 'center 58%' }
 ];
+const DURACION_HERO = 5200;
+
+// Producto de respaldo cuando no hay ningún lanzamiento activo en el backend.
+const PRODUCTO_RESPALDO = {
+  name: 'Oversized Buddha Tee',
+  desc: 'Algodón premium de 240 gsm, corte oversized y estampado propio. Nuestra pieza más pedida, siempre en serie corta.',
+  price: '$110.000 COP · 50 unidades',
+  image: shirtBuddhaImg
+};
+
+const FAQS = [
+  { q: '¿Cómo funcionan los drops?', a: 'Cada drop se anuncia con fecha y hora exacta. Te inscribes con tu correo y te avisamos cuando abre la compra. Las unidades son limitadas y no se reponen.' },
+  { q: '¿Cuánto tarda el envío?', a: 'Entre 2 y 5 días hábiles a ciudades principales de Colombia. Te enviamos la guía de rastreo por WhatsApp en cuanto el pedido sale.' },
+  { q: '¿Qué talla pido?', a: 'El corte es oversized unisex. Si prefieres un calce más ajustado, pide una talla menos de la que usas normalmente.' },
+  { q: '¿Cómo cuido la prenda?', a: 'Lavado a mano o en ciclo delicado con agua fría, al revés. Sin secadora ni blanqueador. Plancha por el lado interno para proteger el estampado.' },
+  { q: '¿Puedo cambiar o devolver?', a: 'Sí. Tienes 5 días desde que recibes el pedido para solicitar cambio de talla, siempre que la prenda esté sin uso y con su etiqueta.' },
+  { q: '¿Qué medios de pago aceptan?', a: 'Tarjeta débito y crédito, PSE y Nequi a través de Wompi. Recibes la factura en PDF por correo al confirmar el pago.' }
+];
+
+const WHATSAPP_URL = 'https://api.whatsapp.com/send/?phone=573103184180&text&type=phone_number&app_absent=0';
 
 // Descompone milisegundos restantes en días / horas / minutos / segundos.
 const desglosarTiempo = (ms) => {
@@ -33,25 +48,44 @@ const desglosarTiempo = (ms) => {
   };
 };
 
-const Home = () => {
-  const [showCheckout, setShowCheckout] = useState(false);
-  const [featuredIndex, setFeaturedIndex] = useState(0);
-  const [formData, setFormData] = useState({ name: '', lastName: '', phone: '', email: '' });
+const reveal = (shouldReduceMotion, delay = 0) => ({
+  initial: shouldReduceMotion ? false : { opacity: 0, y: 26 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, margin: '0px 0px -10% 0px' },
+  transition: { duration: 0.9, delay, ease: [0.16, 1, 0.3, 1] }
+});
 
-  const currentProduct = featuredProducts[featuredIndex];
+const Home = () => {
+  const location = useLocation();
+  const shouldReduceMotion = useReducedMotion();
+
+  // ── Rotador de fotos del hero ─────────────────────────────────────────
+  const [heroIndex, setHeroIndex] = useState(0);
+  useEffect(() => {
+    const iv = setInterval(() => setHeroIndex((i) => (i + 1) % FONDO_HERO.length), DURACION_HERO);
+    return () => clearInterval(iv);
+  }, []);
 
   // ── Lanzamiento (drop con cuenta regresiva) ──────────────────────────────
   const [drop, setDrop] = useState(null);
-  // Diferencia entre el reloj del servidor y el del navegador. El cronómetro se
-  // calcula contra la hora corregida, no contra el reloj del cliente (que puede
-  // estar mal). El disparo real del lanzamiento igual lo valida el servidor.
   const [serverOffset, setServerOffset] = useState(0);
-  const [restante, setRestante] = useState(null); // ms hasta el lanzamiento
+  const [restante, setRestante] = useState(null);
   const [dropVencido, setDropVencido] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
   const [signup, setSignup] = useState({ nombre: '', apellido: '', correo: '', telefono: '' });
-  const [signupStatus, setSignupStatus] = useState('idle'); // idle | sending | done | error
+  const [signupStatus, setSignupStatus] = useState('idle');
   const [signupError, setSignupError] = useState('');
+
+  // ── FAQ ───────────────────────────────────────────────────────────────
+  const [faqAbierta, setFaqAbierta] = useState(-1);
+
+  // Al llegar por un enlace con ancla (#historia, #lanzamiento) desde otra
+  // página, hace scroll a la sección una vez montado el home.
+  useEffect(() => {
+    if (!location.hash) return;
+    const el = document.querySelector(location.hash);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [location.hash]);
 
   const fetchDrop = useCallback(() => {
     fetch(`${API_URL}/api/lanzamientos/home`)
@@ -65,7 +99,6 @@ const Home = () => {
 
   useEffect(() => { fetchDrop(); }, [fetchDrop]);
 
-  // Cronómetro: tick cada segundo mientras haya un lanzamiento programado.
   useEffect(() => {
     if (!drop || drop.estado !== 'programado') {
       setRestante(null);
@@ -83,9 +116,6 @@ const Home = () => {
     return () => clearInterval(iv);
   }, [drop, serverOffset]);
 
-  // Al llegar a cero, el servidor ya habrá creado el producto (scheduler o
-  // chequeo perezoso del propio endpoint). Se reconsulta unas cuantas veces
-  // hasta que el estado cambie a "lanzado".
   useEffect(() => {
     if (!dropVencido || !drop || drop.estado !== 'programado') return;
     let intentos = 0;
@@ -97,17 +127,6 @@ const Home = () => {
     return () => clearInterval(iv);
   }, [dropVencido, drop, fetchDrop]);
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    alert('Pedido iniciado. Nos pondremos en contacto contigo.');
-    setShowCheckout(false);
-  };
-
   const abrirSignup = () => {
     setSignup({ nombre: '', apellido: '', correo: '', telefono: '' });
     setSignupStatus('idle');
@@ -117,7 +136,7 @@ const Home = () => {
 
   const handleSignupChange = (e) => {
     const { name, value } = e.target;
-    setSignup(prev => ({ ...prev, [name]: value }));
+    setSignup((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSignupSubmit = async (e) => {
@@ -144,119 +163,184 @@ const Home = () => {
   const dropLanzado = drop && drop.estado === 'lanzado';
   const t = desglosarTiempo(restante ?? 0);
 
+  // Copy y CTA del bloque Lanzamiento según el estado real del drop.
+  let lanzamiento;
+  if (dropProgramado) {
+    lanzamiento = {
+      etiqueta: `${drop.nombre_lanzamiento} · Programado`,
+      nombre: drop.nombre_producto,
+      imagen: drop.imagenes?.[0]?.url,
+      texto: 'Serie corta. Inscríbete y te avisamos por correo en el momento exacto en que abre la compra.',
+      precio: `$${Number(drop.precio).toLocaleString('es-CO')} COP`,
+      badge: drop.nombre_lanzamiento
+    };
+  } else if (dropLanzado) {
+    lanzamiento = {
+      etiqueta: `${drop.nombre_lanzamiento} · Ya disponible`,
+      nombre: drop.nombre_producto,
+      imagen: drop.imagenes?.[0]?.url,
+      texto: 'Ya disponible. Series cortas, sin reposición: cuando se agota, no vuelve.',
+      precio: `$${Number(drop.precio).toLocaleString('es-CO')} COP`,
+      badge: drop.nombre_lanzamiento
+    };
+  } else {
+    lanzamiento = {
+      etiqueta: 'Recién llegado',
+      nombre: PRODUCTO_RESPALDO.name,
+      imagen: PRODUCTO_RESPALDO.image,
+      texto: PRODUCTO_RESPALDO.desc,
+      precio: PRODUCTO_RESPALDO.price,
+      badge: null
+    };
+  }
+
+  const navCta = dropProgramado
+    ? { label: 'Próximo drop', to: '/#lanzamiento' }
+    : dropLanzado
+      ? { label: 'Comprar ahora', to: drop.producto_id ? `/products?producto=${drop.producto_id}` : '/products' }
+      : { label: 'Ver producto', to: '/products' };
+
   return (
     <div className="home-page">
       {/* ── Hero ── */}
-      <section style={{ height: '100vh', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-        <div style={{ textAlign: 'center', zIndex: 10, padding: '0 1.5rem' }}>
-          <motion.p
-            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}
-            className="font-serif italic"
-            style={{ fontSize: 'clamp(1rem, 3vw, 1.5rem)', marginBottom: '1rem', color: 'var(--text-secondary)' }}
-          >
-            Legacy Of Luxury
-          </motion.p>
-          <motion.h1
-            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 1, delay: 0.2 }}
-            style={{ fontSize: 'clamp(3.5rem, 14vw, 12rem)', textTransform: 'uppercase', lineHeight: '0.85', margin: '0 0 2rem 0' }}
-          >
-            UNDERLAW
-          </motion.h1>
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1, delay: 0.8 }}>
-            <Link to="/products" className="premium-button" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-              Ver Colección <ArrowRight size={16} />
-            </Link>
+      <section className="hero">
+        <div className="hero-bg">
+          {FONDO_HERO.map((foto, i) => (
+            <div key={foto.src} className="hero-bg-layer" style={{ opacity: heroIndex === i ? 1 : 0 }}>
+              <img
+                src={foto.src}
+                alt=""
+                style={{ objectPosition: foto.posicion, transform: heroIndex === i ? 'scale(1.06)' : 'scale(1)' }}
+              />
+            </div>
+          ))}
+          <div className="hero-gradient" />
+        </div>
+
+        <div className="hero-dots">
+          {FONDO_HERO.map((foto, i) => (
+            <button
+              key={foto.src}
+              type="button"
+              aria-label="Ver imagen de fondo"
+              className="hero-dot"
+              style={{ width: heroIndex === i ? '28px' : '14px', background: heroIndex === i ? 'var(--gold)' : 'rgba(242,240,236,0.35)' }}
+              onClick={() => setHeroIndex(i)}
+            />
+          ))}
+        </div>
+
+        <div className="hero-content">
+          <motion.p {...reveal(shouldReduceMotion)} className="eyebrow hero-kicker">Legacy of Luxury · Est. MMXXVI</motion.p>
+          <motion.h1 {...reveal(shouldReduceMotion, 0.08)} className="hero-title">Underlaw</motion.h1>
+          <motion.p {...reveal(shouldReduceMotion, 0.16)} className="hero-subtitle">Under the rules, only yours.</motion.p>
+          <motion.div {...reveal(shouldReduceMotion, 0.24)} className="hero-ctas">
+            <Link to="/products" className="premium-button">Ver colección</Link>
+            <Link to={navCta.to} className="cta-outline">{navCta.label}</Link>
           </motion.div>
         </div>
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(5,5,5,0.2) 0%, rgba(5,5,5,1) 100%)', zIndex: 2 }} />
       </section>
 
-      {/* ── Sección destacada / Lanzamiento ── */}
-      <section className="container" style={{ padding: 'clamp(4rem, 10vw, 10rem) 0' }}>
-        <div className="featured-grid">
-          {dropProgramado ? (
-            <>
-              <motion.div key="drop-img" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8 }}>
-                <div className="premium-card" style={{ borderRadius: '4px', position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
-                  <img src={drop.imagenes?.[0]?.url} alt={drop.nombre_producto} style={{ width: '100%', display: 'block' }} />
-                  {/* Cronómetro superpuesto y centrado sobre la imagen */}
-                  <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(5,5,5,0.45)', backdropFilter: 'blur(2px)' }}>
-                    <p style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.3em', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>Disponible en</p>
-                    <div style={{ display: 'flex', gap: 'clamp(0.75rem, 3vw, 1.75rem)' }}>
-                      {[['Días', t.dias], ['Hrs', t.horas], ['Min', t.minutos], ['Seg', t.segundos]].map(([label, val]) => (
-                        <div key={label} style={{ textAlign: 'center', minWidth: 'clamp(2.5rem, 9vw, 3.75rem)' }}>
-                          <div className="font-serif" style={{ fontSize: 'clamp(1.75rem, 7vw, 3rem)', lineHeight: 1, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
-                            {String(Math.max(0, val)).padStart(2, '0')}
-                          </div>
-                          <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.2em', color: 'var(--text-muted)', marginTop: '0.5rem' }}>{label}</div>
-                        </div>
-                      ))}
-                    </div>
+      {/* ── Marquesina ── */}
+      <div className="marquee">
+        <div className="marquee-track">
+          {[0, 1].map((rep) => (
+            <div key={rep} className="marquee-set">
+              <span>Algodón 240 gsm</span><span className="marquee-dot">·</span>
+              <span>Envíos a todo Colombia</span><span className="marquee-dot">·</span>
+              <span>Cartagena, CO</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Lanzamiento ── */}
+      <section id="lanzamiento" className="lanzamiento">
+        <div className="container lanzamiento-grid">
+          <motion.div {...reveal(shouldReduceMotion)} className="lanzamiento-texto">
+            <p className="lanzamiento-etiqueta"><span className="lanzamiento-pulso" />{lanzamiento.etiqueta}</p>
+            <h2 className="lanzamiento-nombre">{lanzamiento.nombre}</h2>
+            <p className="lanzamiento-desc">{lanzamiento.texto}</p>
+
+            {dropProgramado && (
+              <div className="clock">
+                {[['Días', t.dias], ['Horas', t.horas], ['Min', t.minutos]].map(([label, val]) => (
+                  <div key={label} className="clock-cell">
+                    <div className="clock-num tabular">{String(Math.max(0, val)).padStart(2, '0')}</div>
+                    <div className="clock-label">{label}</div>
+                  </div>
+                ))}
+                <div className="clock-cell">
+                  <div className="clock-num tabular clock-num-gold">{String(Math.max(0, t.segundos)).padStart(2, '0')}</div>
+                  <div className="clock-label">Seg</div>
+                </div>
+              </div>
+            )}
+
+            <div className="lanzamiento-cta-row">
+              {dropProgramado && (
+                <button type="button" className="premium-button" onClick={abrirSignup}>Inscribirme al drop</button>
+              )}
+              {dropLanzado && (
+                <Link to={drop.producto_id ? `/products?producto=${drop.producto_id}` : '/products'} className="premium-button">Comprar ahora</Link>
+              )}
+              {!dropProgramado && !dropLanzado && (
+                <Link to="/products" className="premium-button">Ver producto</Link>
+              )}
+              <span className="lanzamiento-precio tabular">{lanzamiento.precio}</span>
+            </div>
+          </motion.div>
+
+          <motion.div {...reveal(shouldReduceMotion, 0.1)} className="lanzamiento-foto">
+            <img src={lanzamiento.imagen} alt={lanzamiento.nombre} />
+            {lanzamiento.badge && <span className="lanzamiento-badge">{lanzamiento.badge}</span>}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ── Historia ── */}
+      <section id="historia" className="historia">
+        <div className="container historia-grid">
+          <motion.div {...reveal(shouldReduceMotion)}>
+            <p className="eyebrow" style={{ marginBottom: '1.5rem' }}>La marca</p>
+            <h2 className="historia-titulo">Pocas piezas.<br />Hechas bien.</h2>
+            <p className="historia-texto">UnderLaw nació en Cartagena, Colombia en el 2026 estampando tiradas de 50 camisetas. Seguimos igual: series cortas, telas pesadas y estampados propios. Cuando se agota un drop, no vuelve.</p>
+          </motion.div>
+          <motion.div {...reveal(shouldReduceMotion, 0.1)} className="historia-tabla">
+            {[['Tela', 'Algodón 240 gsm'], ['Corte', 'Oversized unisex'], ['Serie', '50 por drop'], ['Envío', '2 a 5 días hábiles']].map(([k, v]) => (
+              <div key={k} className="historia-fila">
+                <span className="historia-fila-label">{k}</span>
+                <span className="historia-fila-valor">{v}</span>
+              </div>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ── Preguntas frecuentes ── */}
+      <section className="faq">
+        <div className="faq-inner">
+          <motion.h2 {...reveal(shouldReduceMotion)} className="faq-titulo">Preguntas frecuentes</motion.h2>
+          <div className="faq-lista">
+            {FAQS.map((f, i) => {
+              const abierta = faqAbierta === i;
+              return (
+                <div key={f.q} className="faq-item">
+                  <button type="button" className="faq-pregunta" onClick={() => setFaqAbierta(abierta ? -1 : i)}>
+                    <span>{f.q}</span>
+                    <span className="faq-icono">{abierta ? '−' : '+'}</span>
+                  </button>
+                  <div className="faq-respuesta-wrap" style={{ maxHeight: abierta ? '300px' : '0px' }}>
+                    <p className="faq-respuesta">{f.a}</p>
                   </div>
                 </div>
-              </motion.div>
-
-              <motion.div key="drop-txt" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8, delay: 0.2 }} className="featured-text">
-                <p className="font-serif italic" style={{ fontSize: '1.2rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>{drop.nombre_lanzamiento}</p>
-                <h2 style={{ fontFamily: 'var(--font-serif)', marginBottom: '1.5rem', fontSize: 'clamp(2rem, 5vw, 3.5rem)', textAlign: 'left' }}>{drop.nombre_producto}</h2>
-                <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', lineHeight: '1.6' }}>
-                  ${Number(drop.precio).toLocaleString('es-CO')} COP · Inscríbete y te avisamos por correo apenas esté disponible para compra.
-                </p>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                  <button className="premium-button" style={{ padding: '1.2rem 2rem', border: '1px solid var(--border)', flex: 1 }} onClick={abrirSignup}>
-                    Inscribirme
-                  </button>
-                </div>
-              </motion.div>
-            </>
-          ) : dropLanzado ? (
-            <>
-              <motion.div key="launched-img" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8 }}>
-                <div className="premium-card" style={{ borderRadius: '4px', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
-                  <img src={drop.imagenes?.[0]?.url} alt={drop.nombre_producto} style={{ width: '100%', display: 'block' }} />
-                </div>
-              </motion.div>
-              <motion.div key="launched-txt" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8, delay: 0.2 }} className="featured-text">
-                <p className="font-serif italic" style={{ fontSize: '1.2rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>{drop.nombre_lanzamiento}</p>
-                <h2 style={{ fontFamily: 'var(--font-serif)', marginBottom: '1.5rem', fontSize: 'clamp(2rem, 5vw, 3.5rem)', textAlign: 'left' }}>{drop.nombre_producto}</h2>
-                <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', lineHeight: '1.6' }}>
-                  ${Number(drop.precio).toLocaleString('es-CO')} COP · Ya disponible para compra.
-                </p>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                  <Link
-                    to={drop.producto_id ? `/products?producto=${drop.producto_id}` : '/products'}
-                    className="premium-button"
-                    style={{ padding: '1.2rem 2rem', border: '1px solid var(--border)', flex: 1, textAlign: 'center' }}
-                  >
-                    Ver Producto
-                  </Link>
-                </div>
-              </motion.div>
-            </>
-          ) : (
-            <>
-              <motion.div key={`img-${featuredIndex}`} initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8 }}>
-                <div className="premium-card" style={{ borderRadius: '4px', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
-                  <img src={currentProduct.image} alt={currentProduct.name} style={{ width: '100%', display: 'block' }} />
-                </div>
-              </motion.div>
-
-              <motion.div key={`txt-${featuredIndex}`} initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8, delay: 0.2 }} className="featured-text">
-                <p className="font-serif italic" style={{ fontSize: '1.2rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>Recién Llegado</p>
-                <h2 style={{ fontFamily: 'var(--font-serif)', marginBottom: '1.5rem', fontSize: 'clamp(2rem, 5vw, 3.5rem)', textAlign: 'left' }}>{currentProduct.name}</h2>
-                <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', lineHeight: '1.6' }}>{currentProduct.desc}</p>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                  <button
-                    className="premium-button"
-                    style={{ padding: '1.2rem 2rem', border: '1px solid var(--border)', flex: 1 }}
-                    onClick={() => setFeaturedIndex((prev) => (prev + 1) % featuredProducts.length)}
-                  >
-                    Ver Siguiente
-                  </button>
-                </div>
-              </motion.div>
-            </>
-          )}
+              );
+            })}
+          </div>
+          <motion.div {...reveal(shouldReduceMotion)} className="faq-contacto">
+            <span>¿Otra duda? Escríbenos por WhatsApp.</span>
+            <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="faq-whatsapp">Hablar con la marca</a>
+          </motion.div>
         </div>
       </section>
 
@@ -264,47 +348,46 @@ const Home = () => {
       <AnimatePresence>
         {showSignup && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowSignup(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100 }} />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowSignup(false)} className="drawer-scrim" />
             <motion.div
               initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              style={{ position: 'fixed', top: 0, right: 0, width: '100%', maxWidth: '450px', height: '100%', background: 'var(--bg-secondary)', zIndex: 101, padding: '2rem', borderLeft: '1px solid var(--border)', overflowY: 'auto' }}
+              className="drawer"
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                <h2 className="font-serif italic" style={{ fontSize: '2rem' }}>Inscribirme</h2>
-                <button onClick={() => setShowSignup(false)}><X size={24} /></button>
+              <div className="drawer-head">
+                <span className="eyebrow">Expediente — Inscripción</span>
+                <button onClick={() => setShowSignup(false)} aria-label="Cerrar"><X size={22} /></button>
               </div>
 
               {drop && (
-                <div style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid var(--border)', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                  <img src={drop.imagenes?.[0]?.url} alt={drop.nombre_producto} style={{ width: '60px', height: '80px', objectFit: 'cover' }} />
+                <div className="drawer-item">
+                  <img src={drop.imagenes?.[0]?.url} alt={drop.nombre_producto} />
                   <div>
-                    <p style={{ fontSize: '0.9rem' }}>{drop.nombre_producto}</p>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>${Number(drop.precio).toLocaleString('es-CO')} COP</p>
+                    <p style={{ fontSize: '0.92rem' }}>{drop.nombre_producto}</p>
+                    <p className="tabular" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>${Number(drop.precio).toLocaleString('es-CO')} COP</p>
                   </div>
                 </div>
               )}
 
               {signupStatus === 'done' ? (
                 <div style={{ textAlign: 'center', padding: '2rem 0' }}>
-                  <div style={{ width: '56px', height: '56px', borderRadius: '50%', border: '2px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
-                    <span style={{ fontSize: '1.75rem' }}>✓</span>
-                  </div>
-                  <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>¡Listo! Te avisaremos por correo cuando el producto esté disponible.</p>
+                  <div className="drawer-check">✓</div>
+                  <p style={{ color: 'var(--text-tertiary)', lineHeight: 1.75 }}>Listo. Te avisaremos por correo cuando el producto esté disponible.</p>
                   <button onClick={() => setShowSignup(false)} className="premium-button" style={{ marginTop: '2rem', padding: '1rem 2.5rem' }}>Cerrar</button>
                 </div>
               ) : (
-                <form onSubmit={handleSignupSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                  {[['nombre', 'Nombre', 'text'], ['apellido', 'Apellido', 'text'], ['correo', 'Correo Electrónico', 'email'], ['telefono', 'Número de Teléfono', 'tel']].map(([n, l, type]) => (
-                    <div key={n} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>{l}</label>
-                      <input type={type} name={n} required value={signup[n]} onChange={handleSignupChange} style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'white', padding: '0.5rem 0' }} />
-                    </div>
+                <form onSubmit={handleSignupSubmit} className="drawer-form">
+                  {[['nombre', 'Nombre', 'text'], ['apellido', 'Apellido', 'text'], ['correo', 'Correo electrónico', 'email'], ['telefono', 'Número de teléfono', 'tel']].map(([n, l, type]) => (
+                    <label key={n} className="drawer-field">
+                      <span>{l}</span>
+                      <input type={type} name={n} required value={signup[n]} onChange={handleSignupChange} />
+                    </label>
                   ))}
-                  {signupStatus === 'error' && <p style={{ color: '#f87171', fontSize: '0.85rem' }}>{signupError}</p>}
-                  <button type="submit" disabled={signupStatus === 'sending'} className="premium-button" style={{ marginTop: '1rem', padding: '1.2rem', opacity: signupStatus === 'sending' ? 0.6 : 1, cursor: signupStatus === 'sending' ? 'not-allowed' : 'pointer' }}>
-                    {signupStatus === 'sending' ? 'Enviando...' : 'Confirmar inscripción'}
+                  <p className="drawer-error">{signupStatus === 'error' ? signupError : ''}</p>
+                  <button type="submit" disabled={signupStatus === 'sending'} className="premium-button" style={{ padding: '1.15rem' }}>
+                    {signupStatus === 'sending' ? 'Enviando…' : 'Sellar inscripción'}
                   </button>
+                  <p className="drawer-note">Te escribimos solo para avisarte de este drop. Sin listas de correo.</p>
                 </form>
               )}
             </motion.div>
@@ -312,71 +395,153 @@ const Home = () => {
         )}
       </AnimatePresence>
 
-      {/* ── Checkout Sidebar ── */}
-      <AnimatePresence>
-        {showCheckout && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowCheckout(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100 }} />
-            <motion.div
-              initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              style={{ position: 'fixed', top: 0, right: 0, width: '100%', maxWidth: '450px', height: '100%', background: 'var(--bg-secondary)', zIndex: 101, padding: '2rem', borderLeft: '1px solid var(--border)', overflowY: 'auto' }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                <h2 className="font-serif italic" style={{ fontSize: '2rem' }}>Finalizar Compra</h2>
-                <button onClick={() => setShowCheckout(false)}><X size={24} /></button>
-              </div>
-              <div style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid var(--border)', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                <img src={currentProduct.image} alt={currentProduct.name} style={{ width: '60px', height: '80px', objectFit: 'cover' }} />
-                <div>
-                  <p style={{ fontSize: '0.9rem' }}>{currentProduct.name}</p>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{currentProduct.price}</p>
-                </div>
-              </div>
-              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                {[['name','Nombre','text'],['lastName','Apellido','text'],['phone','Teléfono','tel'],['email','Correo Electrónico','email']].map(([n, l, t]) => (
-                  <div key={n} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>{l}</label>
-                    <input type={t} name={n} required value={formData[n]} onChange={handleInputChange} style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'white', padding: '0.5rem 0' }} />
-                  </div>
-                ))}
-                <button type="submit" className="premium-button" style={{ marginTop: '2rem', padding: '1.2rem' }}>Comprar</button>
-              </form>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* ── Brand Ethos ── */}
-      <section style={{ backgroundColor: 'var(--bg-secondary)', padding: 'clamp(5rem, 10vw, 10rem) 0' }}>
-        <div className="container" style={{ textAlign: 'center' }}>
-          <h2 className="font-serif italic" style={{ fontSize: 'clamp(1.8rem, 5vw, 3rem)', marginBottom: '2rem' }}>"Under the rules, Only Ours."</h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.3em' }}>Legacy of Luxury since 2026</p>
-        </div>
-      </section>
-
       <style>{`
-        .featured-grid {
+        .hero {
+          position: relative;
+          min-height: min(94vh, 820px);
+          display: flex;
+          align-items: center;
+          overflow: hidden;
+        }
+        .hero-bg { position: absolute; inset: 0; }
+        .hero-bg-layer { position: absolute; inset: 0; transition: opacity 1.6s cubic-bezier(.4,0,.2,1); }
+        .hero-bg-layer img {
+          width: 100%; height: 100%; object-fit: cover; display: block;
+          filter: grayscale(.3) contrast(1.08) brightness(.72);
+          transition: transform 7s linear;
+        }
+        .hero-gradient {
+          position: absolute; inset: 0;
+          background: linear-gradient(to top, var(--bg-primary) 4%, rgba(6,6,6,.82) 38%, rgba(6,6,6,.25) 100%);
+        }
+        .hero-dots {
+          position: absolute; bottom: 1.25rem; right: clamp(1.1rem, 4vw, 2.5rem); z-index: 3;
+          display: flex; gap: 0.4rem;
+        }
+        .hero-dot { height: 2px; border: none; padding: 0; cursor: pointer; transition: all .5s ease; }
+        .hero-content {
+          position: relative; z-index: 2; width: 100%;
+          padding: clamp(2rem, 6vw, 4.5rem) clamp(1.1rem, 4vw, 2.5rem);
+          text-align: center;
+        }
+        .hero-content > * { max-width: 1400px; margin-left: auto; margin-right: auto; }
+        .hero-kicker { font-size: 0.66rem; letter-spacing: 0.5em; margin-bottom: clamp(1.25rem, 3vw, 2rem); }
+        .hero-title {
+          font-weight: 300; font-size: clamp(2.6rem, 10vw, 7rem); line-height: 0.9;
+          letter-spacing: 0.12em; text-transform: uppercase; margin: 0;
+        }
+        .hero-subtitle {
+          font-family: var(--font-serif); font-style: italic; font-size: clamp(1.15rem, 3.2vw, 1.9rem);
+          color: var(--text-secondary); margin: 1.1rem 0 0;
+        }
+        .hero-ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; margin-top: clamp(1.75rem, 4vw, 2.75rem); }
+
+        .marquee { border-bottom: 1px solid var(--border); overflow: hidden; padding: 0.85rem 0; }
+        .marquee-track { display: flex; width: max-content; animation: ul-marquee 28s linear infinite; }
+        .marquee-set {
+          display: flex; gap: 2.75rem; padding-right: 2.75rem;
+          font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.26em; color: var(--text-muted);
+          white-space: nowrap;
+        }
+        .marquee-dot { color: var(--gold); }
+        @keyframes ul-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+        .lanzamiento { padding: clamp(3.5rem, 9vw, 7rem) 0; }
+        .lanzamiento-grid {
           display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 4rem;
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+          gap: clamp(2rem, 5vw, 4.5rem);
           align-items: center;
         }
+        .lanzamiento-texto { order: 2; }
+        .lanzamiento-etiqueta {
+          display: inline-flex; align-items: center; gap: 0.5rem;
+          font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.28em; color: var(--gold);
+          margin: 0 0 1.25rem;
+        }
+        .lanzamiento-pulso { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); animation: ul-pulse 1.9s ease-in-out infinite; }
+        @keyframes ul-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+        .lanzamiento-nombre { font-weight: 300; font-size: clamp(2.1rem, 6vw, 4rem); line-height: 1.02; letter-spacing: -0.02em; margin: 0 0 1.25rem; }
+        .lanzamiento-desc { color: var(--text-tertiary); line-height: 1.8; margin: 0 0 2rem; max-width: 44ch; }
+        .clock { display: flex; gap: clamp(1rem, 4vw, 2.25rem); border-top: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft); padding: 1.5rem 0; margin-bottom: 2rem; }
+        .clock-cell { flex: 1; }
+        .clock-num { font-family: var(--font-serif); font-weight: 300; font-size: clamp(2rem, 7vw, 3.2rem); line-height: 1; }
+        .clock-num-gold { color: var(--gold); }
+        .clock-label { font-size: 0.56rem; text-transform: uppercase; letter-spacing: 0.2em; color: var(--text-muted); margin-top: 0.5rem; }
+        .lanzamiento-cta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+        .lanzamiento-precio { font-size: 0.85rem; color: var(--text-muted); }
+        .lanzamiento-foto { order: 1; position: relative; }
+        .lanzamiento-foto img { width: 100%; aspect-ratio: 4/5; object-fit: cover; display: block; background: var(--bg-tertiary); }
+        .lanzamiento-badge {
+          position: absolute; left: 0; bottom: 0; background: var(--bg-primary); border-top: 1px solid var(--gold);
+          padding: 0.65rem 0.9rem; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.2em; color: var(--text-secondary);
+        }
+
+        .historia { padding: clamp(3.5rem, 9vw, 7rem) 0; }
+        .historia-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+          gap: clamp(2rem, 6vw, 5rem);
+          align-items: center;
+        }
+        .historia-titulo { font-style: italic; font-weight: 300; font-size: clamp(1.9rem, 5.5vw, 3.2rem); line-height: 1.12; margin: 0 0 1.35rem; }
+        .historia-texto { color: var(--text-tertiary); line-height: 1.85; margin: 0; max-width: 46ch; }
+        .historia-tabla { display: grid; gap: 1px; background: var(--border-soft); }
+        .historia-fila { background: var(--bg-primary); padding: 1.35rem 0; display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+        .historia-fila-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.2em; color: var(--text-muted); }
+        .historia-fila-valor { font-family: var(--font-serif); font-size: 1.15rem; }
+
+        .faq { background: var(--bg-light); color: var(--text-on-light); padding: clamp(3.5rem, 9vw, 7rem) clamp(1.1rem, 4vw, 2.5rem); }
+        .faq-inner { max-width: 940px; margin: 0 auto; }
+        .faq-titulo { font-style: italic; font-weight: 300; font-size: clamp(1.9rem, 5.5vw, 3.2rem); margin: 0 0 clamp(1.75rem, 4vw, 2.75rem); color: var(--text-on-light); }
+        .faq-lista { display: grid; gap: 1px; background: var(--border-light); }
+        .faq-item { background: var(--bg-light); }
+        .faq-pregunta {
+          width: 100%; background: none; border: none; font-family: inherit; color: var(--text-on-light);
+          text-align: left; padding: 1.35rem 0; display: flex; justify-content: space-between; align-items: center;
+          gap: 1.5rem; cursor: pointer; font-size: 0.98rem;
+        }
+        .faq-icono { color: var(--gold); font-size: 1.3rem; line-height: 1; flex-shrink: 0; }
+        .faq-respuesta-wrap { overflow: hidden; transition: max-height .5s cubic-bezier(.16,1,.3,1); }
+        .faq-respuesta { color: var(--text-on-light-muted); line-height: 1.8; margin: 0; padding: 0 0 1.5rem; max-width: 62ch; }
+        .faq-contacto { margin-top: clamp(2rem, 5vw, 3rem); display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+        .faq-contacto span { font-size: 0.9rem; color: var(--text-on-light-muted); }
+        .faq-whatsapp {
+          padding: 0.9rem 1.7rem; background: var(--text-on-light); color: var(--bg-light);
+          font-size: 0.66rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.18em;
+        }
+        .faq-whatsapp:hover { color: var(--bg-light); opacity: 0.85; }
+
+        .drawer-scrim { position: fixed; inset: 0; background: rgba(0,0,0,0.78); z-index: 200; }
+        .drawer {
+          position: fixed; top: 0; right: 0; width: 100%; max-width: 430px; height: 100%;
+          background: var(--bg-secondary); z-index: 201; padding: clamp(1.25rem, 4vw, 2rem);
+          border-left: 1px solid var(--border); overflow-y: auto;
+        }
+        .drawer-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+        .drawer-head button { color: var(--text-primary); }
+        .drawer-item {
+          margin-bottom: 2rem; padding-bottom: 1.35rem; border-bottom: 1px solid var(--border);
+          display: flex; gap: 1.1rem; align-items: center;
+        }
+        .drawer-item img { width: 62px; aspect-ratio: 3/4; object-fit: cover; background: var(--bg-tertiary); flex-shrink: 0; }
+        .drawer-check {
+          width: 58px; height: 58px; border-radius: 50%; border: 1px solid var(--gold);
+          display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; color: var(--gold); font-size: 1.5rem;
+        }
+        .drawer-form { display: flex; flex-direction: column; gap: 1.35rem; }
+        .drawer-field { display: flex; flex-direction: column; gap: 0.5rem; }
+        .drawer-field span { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.2em; color: var(--text-muted); }
+        .drawer-field input {
+          background: var(--bg-primary); border: 1px solid var(--border-strong);
+          color: var(--text-primary); padding: 0.8rem 1rem; font-size: 0.95rem; font-family: var(--font-sans); outline: none;
+        }
+        .drawer-error { color: var(--error); font-size: 0.85rem; margin: 0; min-height: 1rem; }
+        .drawer-note { font-size: 0.78rem; color: var(--text-dim); line-height: 1.7; margin: 0; }
+
         @media (max-width: 768px) {
-          .featured-grid {
-            grid-template-columns: 1fr;
-            gap: 2.5rem;
-          }
-          .featured-text {
-            text-align: center;
-          }
-          .featured-text h2 {
-            text-align: center !important;
-          }
-          .featured-text p {
-            margin-left: auto;
-            margin-right: auto;
-          }
+          .lanzamiento-texto { order: 2; }
+          .lanzamiento-foto { order: 1; }
         }
       `}</style>
     </div>
