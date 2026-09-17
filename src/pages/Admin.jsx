@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, LogOut, X } from 'lucide-react';
 import logoUnderlaw from '../assets/logo-underlaw.jpg';
@@ -190,6 +191,7 @@ const Admin = () => {
             <button type="submit" disabled={loggingIn} className="premium-button" style={{ width: '100%', opacity: loggingIn ? 0.6 : 1, cursor: loggingIn ? 'not-allowed' : 'pointer' }}>
               {loggingIn ? 'Ingresando…' : 'Ingresar'}
             </button>
+            <Link to="/" className="admin-back-btn">Volver a la página</Link>
           </form>
         </motion.div>
         <style>{ADMIN_STYLES}</style>

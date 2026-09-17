@@ -495,7 +495,7 @@ const Products = () => {
 
       {/* ── Franja de info ── */}
       <section className="info-strip">
-        <div className="container info-grid">
+        <div className="info-grid">
           {[['Envío', '2 a 5 días hábiles'], ['Cambios', '5 días para talla'], ['Pago', 'Tarjeta, PSE y Nequi'], ['Serie', '50 por drop']].map(([k, v]) => (
             <div key={k} className="info-cell">
               <p className="info-cell-label">{k}</p>
@@ -760,8 +760,8 @@ const Products = () => {
         .product-tallas { margin: 0.25rem 0 0; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.18em; color: var(--text-muted); }
         .product-price { margin: 0; font-size: 0.88rem; white-space: nowrap; }
 
-        .info-strip { background: var(--bg-light); color: var(--text-on-light); padding: clamp(2.5rem, 6vw, 4rem) 0; }
-        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 1px; background: var(--border-light); }
+        .info-strip { background: var(--bg-light); color: var(--text-on-light); padding: clamp(2.5rem, 6vw, 4rem) clamp(1.1rem, 4vw, 2.5rem); }
+        .info-grid { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 1px; background: var(--border-light); }
         .info-cell { background: var(--bg-light); padding: 1.5rem 1.25rem; }
         .info-cell-label { margin: 0; font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.2em; color: var(--text-dim); }
         .info-cell-value { margin: 0.55rem 0 0; font-family: var(--font-serif); font-size: 1.3rem; color: var(--text-on-light); }

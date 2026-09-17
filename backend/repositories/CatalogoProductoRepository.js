@@ -37,9 +37,11 @@ class CatalogoProductoRepository {
     }));
   }
 
-  // Público: solo productos activos (ver GET /api/catalogo).
+  // Público (ver GET /api/catalogo): activos y suspendidos por igual. Un
+  // producto suspendido sigue visible en la Colección marcado "No disponible"
+  // (lo decide el frontend por su "estado"); solo Eliminar lo quita de verdad.
   async findAllActivos() {
-    const [rows] = await db.execute("SELECT * FROM catalogo_productos WHERE estado = 'activo' ORDER BY id DESC");
+    const [rows] = await db.execute('SELECT * FROM catalogo_productos ORDER BY id DESC');
     return this._conImagenes(rows);
   }
 

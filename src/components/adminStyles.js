@@ -6,6 +6,12 @@ export const ADMIN_STYLES = `
   .admin-login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.25rem; }
   .admin-login-card { width: 100%; max-width: 400px; padding: clamp(2rem, 5vw, 3rem); border: 1px solid var(--border); background: var(--bg-secondary); }
   .admin-login-logo { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; display: block; margin: 0 auto 1.5rem; }
+  .admin-back-btn {
+    display: block; width: 100%; text-align: center; padding: 0.9rem 1.6rem;
+    background: var(--bg-primary); border: 1px solid var(--border-strong); color: var(--text-primary);
+    font-family: var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: 0.18em; font-size: 0.7rem;
+  }
+  .admin-back-btn:hover { color: var(--text-primary); border-color: var(--gold); }
 
   .admin-page { min-height: 100vh; }
   .admin-header { position: sticky; top: 0; z-index: 50; background: rgba(6,6,6,0.9); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border); }
