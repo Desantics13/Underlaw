@@ -1,3 +1,5 @@
+require('./instrument');
+const Sentry = require('@sentry/node');
 const dns = require('dns');
 const express = require('express');
 const cors = require('cors');
@@ -63,6 +65,10 @@ app.use('/api/lanzamientos', lanzamientoRoutes);
 app.use('/api/secciones', seccionRoutes);
 app.use('/api/inventario', inventarioRoutes);
 
+// Reporta a Sentry cualquier error lanzado en las rutas anteriores; debe ir
+// antes del manejador de errores global para no interceptar la respuesta.
+Sentry.setupExpressErrorHandler(app);
+
 // Manejo de errores global
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -87,8 +93,9 @@ app.listen(PORT, () => {
 // ─────────────────────────────────────────────────────────────────────────
 const LANZAMIENTO_TICK_MS = 60 * 1000;
 const dispararProcesoLanzamientos = () =>
-  LanzamientoService.procesarVencidos().catch((err) =>
-    console.error('Scheduler de lanzamientos:', err)
-  );
+  LanzamientoService.procesarVencidos().catch((err) => {
+    console.error('Scheduler de lanzamientos:', err);
+    Sentry.captureException(err);
+  });
 setTimeout(dispararProcesoLanzamientos, 5000);
 setInterval(dispararProcesoLanzamientos, LANZAMIENTO_TICK_MS);

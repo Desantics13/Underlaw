@@ -32,3 +32,6 @@ backend/.cache
 *.njsproj
 *.sln
 *.sw?
+
+.vercel
+.env*

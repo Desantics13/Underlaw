@@ -10,6 +10,7 @@
     "build": "node node_modules/puppeteer/install.mjs"
   },
   "dependencies": {
+    "@sentry/node": "^10.75.0",
     "cloudinary": "^2.10.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
