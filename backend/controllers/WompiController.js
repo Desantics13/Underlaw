@@ -1,3 +1,4 @@
+const Sentry = require('@sentry/node');
 const PedidoRepository = require('../repositories/PedidoRepository');
 const DireccionRepository = require('../repositories/DireccionRepository');
 const NotificacionRepository = require('../repositories/NotificacionRepository');
@@ -103,6 +104,7 @@ class WompiController {
       });
     } catch (error) {
       console.error('Error en iniciarPago:', error);
+      Sentry.captureException(error);
       res.status(500).json({ error: error.message || 'Error interno al iniciar el pago' });
     }
   }
@@ -127,6 +129,7 @@ class WompiController {
       res.status(200).json({ message: 'Pedido confirmado', pedidoId: pedido.id });
     } catch (error) {
       console.error('Error en confirmarPago:', error);
+      Sentry.captureException(error);
       res.status(500).json({ error: error.message || 'Error interno al confirmar el pago' });
     }
   }
@@ -221,6 +224,7 @@ class WompiController {
       res.status(200).json({ message: 'Evento procesado' });
     } catch (error) {
       console.error('Error en webhook de Wompi:', error);
+      Sentry.captureException(error);
       res.status(500).json({ error: 'Error interno procesando el webhook' });
     }
   }
@@ -281,6 +285,7 @@ class WompiController {
       });
     } catch (emailError) {
       console.error('Error al generar/enviar la factura, se intenta el correo simple de respaldo:', emailError);
+      Sentry.captureException(emailError);
       try {
         await EmailService.sendPaymentConfirmationEmail(
           pedido.correo_cliente,
@@ -292,6 +297,7 @@ class WompiController {
         });
       } catch (fallbackError) {
         console.error('Error también en el correo de respaldo (el pago sí queda confirmado):', fallbackError);
+        Sentry.captureException(fallbackError);
       }
     }
 

@@ -1,3 +1,4 @@
+const Sentry = require('@sentry/node');
 const PedidoRepository = require('../repositories/PedidoRepository');
 const EmailService = require('../services/EmailService');
 const Pedido = require('../models/Pedido');
@@ -45,6 +46,7 @@ class PedidoController {
 
     } catch (error) {
       console.error('Error en crearPedido Controller:', error);
+      Sentry.captureException(error);
       res.status(500).json({ error: error.message || 'Error interno del servidor al procesar el pedido' });
     }
   }
