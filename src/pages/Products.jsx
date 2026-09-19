@@ -271,6 +271,13 @@ const Products = () => {
 
     setPaymentError('');
 
+    // Libera el bloqueo de scroll del body mientras el widget está abierto: el
+    // widget se inyecta en el body y hereda ese overflow:hidden, y algunos
+    // métodos (Nequi) agregan contenido que no cabe en pantalla sin poder
+    // hacer scroll. Se re-bloquea al cerrar (línea 163 lo vuelve a poner si
+    // sigue aplicando, pero lo forzamos explícito por si el carrito ya cerró).
+    document.body.style.overflow = '';
+
     const checkout = new window.WidgetCheckout({
       currency,
       amountInCents,
@@ -304,6 +311,7 @@ const Products = () => {
         if (el instanceof HTMLElement && el.classList.contains('waybox-backdrop') && el.hasAttribute('hidden')) {
           settled = true;
           observer.disconnect();
+          document.body.style.overflow = (isCartOpen || quickViewProduct) ? 'hidden' : '';
           cancelarPedidoBackend(reference, 'VOIDED');
           setDeclineStatus('');
           setIsProcessing(false);
@@ -318,6 +326,7 @@ const Products = () => {
       if (settled) return;
       settled = true;
       observer.disconnect();
+      document.body.style.overflow = (isCartOpen || quickViewProduct) ? 'hidden' : '';
 
       const transaction = result?.transaction;
 
