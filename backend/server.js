@@ -32,7 +32,10 @@ const ALLOWED_ORIGINS = [
   'https://underlaw.site',
   'https://www.underlaw.site',
   'http://localhost:5173',
-  'http://localhost:3000'
+  'http://localhost:3000',
+  // TEMPORAL: IP de red local para probar el cliente Flutter Web desde el
+  // celular (mismo Wi-Fi). Quitar cuando termine esa prueba.
+  'http://192.168.0.8:3000'
 ].filter(Boolean);
 
 const corsOptions = {
