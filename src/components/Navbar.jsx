@@ -85,8 +85,13 @@ const Navbar = () => {
           color: var(--bg-primary);
           padding: 0.6rem 1rem;
           font-weight: 500;
+          white-space: nowrap;
         }
         .nav-pill:hover { color: var(--bg-primary); opacity: 0.85; }
+        @media (max-width: 480px) {
+          .nav-links { gap: 0.45rem; font-size: 0.56rem; letter-spacing: 0.08em; }
+          .nav-pill { padding: 0.55rem 0.7rem; }
+        }
       `}</style>
     </nav>
   );
