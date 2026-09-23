@@ -1,34 +1,6 @@
 const db = require('../config/db');
-const Pedido = require('../models/Pedido');
 
 class PedidoRepository {
-  // Método para guardar un nuevo pedido en la base de datos
-  async save(pedidoData) {
-    const query = `
-      INSERT INTO producto 
-      (nombre_cliente, apellido_cliente, correo_cliente, telefono_cliente, nombre_producto, precio_producto, metodo_pago) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `;
-    
-    const values = [
-      pedidoData.nombre_cliente,
-      pedidoData.apellido_cliente,
-      pedidoData.correo_cliente,
-      pedidoData.telefono_cliente,
-      pedidoData.nombre_producto,
-      pedidoData.precio_producto,
-      pedidoData.metodo_pago || 'No especificado'
-    ];
-
-    try {
-      const [result] = await db.execute(query, values);
-      return { id: result.insertId, ...pedidoData };
-    } catch (error) {
-      console.error('Error al guardar el pedido en BD:', error);
-      throw new Error('Error de base de datos al guardar pedido');
-    }
-  }
-
   // Método opcional para obtener todos los pedidos (para el Dashboard)
   // Incluye la dirección de envío asociada (si existe) mediante LEFT JOIN
   async findAll() {
