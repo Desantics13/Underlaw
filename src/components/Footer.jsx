@@ -37,7 +37,7 @@ const Footer = () => {
 
       <div className="container footer-bottom">
         <span>© 2026 Under Law. Todos los derechos reservados.</span>
-        <span className="footer-legal"><a href="#">Términos</a><a href="#">Privacidad</a></span>
+        <span className="footer-legal"><Link to="/privacidad">Términos y Privacidad</Link></span>
       </div>
 
       <style>{`

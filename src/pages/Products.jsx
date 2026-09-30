@@ -5,6 +5,7 @@ import { jsPDF } from "jspdf";
 import ProductImageCarousel from '../components/ProductImageCarousel';
 import QuickViewModal from '../components/QuickViewModal';
 import { API_URL } from '../utils/adminApi';
+import { track } from '../utils/analytics';
 
 const WOMPI_WIDGET_SCRIPT_ID = 'wompi-widget-script';
 
@@ -34,6 +35,8 @@ const Products = () => {
   });
   const [checkoutStep, setCheckoutStep] = useState('cart'); // cart, info, address, payment, declined, success
   const [formData, setFormData] = useState({ name: '', lastName: '', phone: '', email: '', doc: '', pais: '', municipio: '', ciudad: '', direccion: '' });
+  const [formErrors, setFormErrors] = useState({});
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState('');
   const [declineStatus, setDeclineStatus] = useState('');
@@ -198,6 +201,7 @@ const Products = () => {
       return [...prev, { ...nuevo, quantity: Math.min(maxCompraDe(nuevo), quantity) }];
     });
     setIsCartOpen(true);
+    track('add_to_cart', { product_id: product.id, product_name: product.name, talla, quantity, price: product.price });
   };
 
   const updateQuantity = (id, delta) => {
@@ -213,6 +217,35 @@ const Products = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    setFormErrors(prev => (prev[name] ? { ...prev, [name]: '' } : prev));
+  };
+
+  // Un validador por campo: recibe el valor y devuelve el mensaje de error, o
+  // '' si es válido. Se corre en el frontend para feedback inmediato; el
+  // backend (Pedido.validate) solo exige que los campos no vengan vacíos, así
+  // que esto es la única barrera real contra formatos inválidos.
+  const FIELD_VALIDATORS = {
+    name: (v) => (/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s]{2,}$/.test(v.trim()) ? '' : 'Ingresa un nombre válido'),
+    lastName: (v) => (/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s]{2,}$/.test(v.trim()) ? '' : 'Ingresa un apellido válido'),
+    doc: (v) => (/^\d{5,15}$/.test(v.trim()) ? '' : 'Documento inválido (solo números)'),
+    phone: (v) => (/^\d{7,15}$/.test(v.trim()) ? '' : 'Teléfono inválido (solo números)'),
+    email: (v) => (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? '' : 'Correo inválido'),
+    pais: (v) => (v.trim().length >= 2 ? '' : 'Requerido'),
+    municipio: (v) => (v.trim().length >= 2 ? '' : 'Requerido'),
+    ciudad: (v) => (v.trim().length >= 2 ? '' : 'Requerido'),
+    direccion: (v) => (v.trim().length >= 5 ? '' : 'Ingresa una dirección completa')
+  };
+
+  // Valida un grupo de campos (un paso del checkout) contra formData. Guarda
+  // los errores encontrados en formErrors y devuelve si el paso es válido.
+  const validateStep = (fields) => {
+    const errors = {};
+    for (const field of fields) {
+      const message = FIELD_VALIDATORS[field](formData[field] || '');
+      if (message) errors[field] = message;
+    }
+    setFormErrors(prev => ({ ...prev, ...errors, ...Object.fromEntries(fields.filter(f => !errors[f]).map(f => [f, ''])) }));
+    return Object.keys(errors).length === 0;
   };
 
   // Genera la factura en PDF, la descarga y devuelve el base64 para adjuntarla al correo
@@ -316,6 +349,7 @@ const Products = () => {
           setDeclineStatus('');
           setIsProcessing(false);
           setCheckoutStep('declined');
+          track('payment_declined', { reason: 'widget_closed' });
           return;
         }
       }
@@ -353,10 +387,12 @@ const Products = () => {
           }
 
           setCheckoutStep('success');
+          track('purchase', { value: totalCarrito, currency: 'COP', items: totalItems, reference });
           setCart([]);
         } else {
           // Pago rechazado/anulado (esto sí llega con transaction definido)
           cancelarPedidoBackend(reference, transaction?.status || 'VOIDED');
+          track('payment_declined', { reason: transaction?.status || 'VOIDED' });
           setDeclineStatus(transaction?.status || '');
           setCheckoutStep('declined');
         }
@@ -375,6 +411,7 @@ const Products = () => {
     e.preventDefault();
     setIsProcessing(true);
     setPaymentError('');
+    track('payment_attempt', { value: totalCarrito, currency: 'COP', items: totalItems });
 
     try {
       const response = await fetch(`${API_URL}/api/wompi/iniciar`, {
@@ -574,36 +611,80 @@ const Products = () => {
                         <span>Total</span>
                         <span className="tabular">${totalCarrito.toLocaleString('es-CO')} COP</span>
                       </div>
-                      <button className="premium-button" onClick={() => setCheckoutStep('info')} style={{ width: '100%' }}>Finalizar pedido</button>
+                      <button
+                        className="premium-button"
+                        onClick={() => {
+                          track('begin_checkout', { value: totalCarrito, currency: 'COP', items: totalItems });
+                          setCheckoutStep('info');
+                        }}
+                        style={{ width: '100%' }}
+                      >
+                        Finalizar pedido
+                      </button>
                     </div>
                   </div>
                 )
               )}
 
               {checkoutStep === 'info' && (
-                <form onSubmit={(e) => { e.preventDefault(); setCheckoutStep('address'); }} className="drawer-form" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const datosValidos = validateStep(['name', 'lastName', 'doc', 'phone', 'email']);
+                    if (!privacyAccepted) setFormErrors(prev => ({ ...prev, privacy: 'Debes aceptar el tratamiento de tus datos para continuar.' }));
+                    if (datosValidos && privacyAccepted) {
+                      track('checkout_info_submitted');
+                      setCheckoutStep('address');
+                    }
+                  }}
+                  className="drawer-form"
+                  style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}
+                  noValidate
+                >
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                    <label className="drawer-field">
+                    <label className={`drawer-field${formErrors.name ? ' has-error' : ''}`}>
                       <span>Nombre</span>
                       <input type="text" name="name" required value={formData.name} onChange={handleInputChange} />
+                      {formErrors.name && <p className="drawer-error">{formErrors.name}</p>}
                     </label>
-                    <label className="drawer-field">
+                    <label className={`drawer-field${formErrors.lastName ? ' has-error' : ''}`}>
                       <span>Apellido</span>
                       <input type="text" name="lastName" required value={formData.lastName} onChange={handleInputChange} />
+                      {formErrors.lastName && <p className="drawer-error">{formErrors.lastName}</p>}
                     </label>
                   </div>
-                  <label className="drawer-field">
+                  <label className={`drawer-field${formErrors.doc ? ' has-error' : ''}`}>
                     <span>Documento (CC)</span>
-                    <input type="text" name="doc" required value={formData.doc} onChange={handleInputChange} />
+                    <input type="text" inputMode="numeric" name="doc" required value={formData.doc} onChange={handleInputChange} />
+                    {formErrors.doc && <p className="drawer-error">{formErrors.doc}</p>}
                   </label>
-                  <label className="drawer-field">
+                  <label className={`drawer-field${formErrors.phone ? ' has-error' : ''}`}>
                     <span>Teléfono</span>
-                    <input type="tel" name="phone" required value={formData.phone} onChange={handleInputChange} />
+                    <input type="tel" inputMode="numeric" name="phone" required value={formData.phone} onChange={handleInputChange} />
+                    {formErrors.phone && <p className="drawer-error">{formErrors.phone}</p>}
                   </label>
-                  <label className="drawer-field">
+                  <label className={`drawer-field${formErrors.email ? ' has-error' : ''}`}>
                     <span>Correo electrónico</span>
                     <input type="email" name="email" required value={formData.email} onChange={handleInputChange} />
+                    {formErrors.email && <p className="drawer-error">{formErrors.email}</p>}
                   </label>
+
+                  <label className="drawer-consent">
+                    <input
+                      type="checkbox"
+                      checked={privacyAccepted}
+                      onChange={(e) => {
+                        setPrivacyAccepted(e.target.checked);
+                        setFormErrors(prev => (prev.privacy ? { ...prev, privacy: '' } : prev));
+                      }}
+                    />
+                    <span>
+                      He leído y acepto los{' '}
+                      <a href="/privacidad" target="_blank" rel="noopener noreferrer">Términos y Condiciones de Compra</a>{' '}
+                      y autorizo el tratamiento de mis datos personales conforme a la Ley 1581 de 2012.
+                    </span>
+                  </label>
+                  {formErrors.privacy && <p className="drawer-error">{formErrors.privacy}</p>}
 
                   <div className="drawer-form-footer">
                     <button type="submit" className="premium-button" style={{ width: '100%' }}>Continuar proceso</button>
@@ -613,22 +694,37 @@ const Products = () => {
               )}
 
               {checkoutStep === 'address' && (
-                <form onSubmit={(e) => { e.preventDefault(); setCheckoutStep('payment'); }} className="drawer-form" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-                  <label className="drawer-field">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (validateStep(['pais', 'municipio', 'ciudad', 'direccion'])) {
+                      track('checkout_address_submitted');
+                      setCheckoutStep('payment');
+                    }
+                  }}
+                  className="drawer-form"
+                  style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}
+                  noValidate
+                >
+                  <label className={`drawer-field${formErrors.pais ? ' has-error' : ''}`}>
                     <span>País</span>
                     <input type="text" name="pais" required value={formData.pais} onChange={handleInputChange} />
+                    {formErrors.pais && <p className="drawer-error">{formErrors.pais}</p>}
                   </label>
-                  <label className="drawer-field">
+                  <label className={`drawer-field${formErrors.municipio ? ' has-error' : ''}`}>
                     <span>Municipio</span>
                     <input type="text" name="municipio" required value={formData.municipio} onChange={handleInputChange} />
+                    {formErrors.municipio && <p className="drawer-error">{formErrors.municipio}</p>}
                   </label>
-                  <label className="drawer-field">
+                  <label className={`drawer-field${formErrors.ciudad ? ' has-error' : ''}`}>
                     <span>Ciudad</span>
                     <input type="text" name="ciudad" required value={formData.ciudad} onChange={handleInputChange} />
+                    {formErrors.ciudad && <p className="drawer-error">{formErrors.ciudad}</p>}
                   </label>
-                  <label className="drawer-field">
+                  <label className={`drawer-field${formErrors.direccion ? ' has-error' : ''}`}>
                     <span>Dirección</span>
                     <input type="text" name="direccion" required value={formData.direccion} onChange={handleInputChange} />
+                    {formErrors.direccion && <p className="drawer-error">{formErrors.direccion}</p>}
                   </label>
 
                   <div className="drawer-form-footer">
@@ -793,6 +889,13 @@ const Products = () => {
           background: transparent; border: none; border-bottom: 1px solid var(--border-strong);
           color: var(--text-primary); padding: 0.5rem 0; font-size: 0.95rem; font-family: var(--font-sans); outline: none;
         }
+        .drawer-field.has-error input { border-bottom-color: var(--error); }
+        .drawer-error { color: var(--error); font-size: 0.75rem; margin: 0; }
+        .drawer-consent { display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; }
+        .drawer-consent input { margin-top: 0.2rem; flex-shrink: 0; accent-color: var(--gold); }
+        .drawer-consent span { font-size: 0.76rem; line-height: 1.6; color: var(--text-muted); }
+        .drawer-consent a { color: var(--text-secondary); text-decoration: underline; }
+        .drawer-consent a:hover { color: var(--gold); }
         .drawer-form-footer { margin-top: auto; flex-shrink: 0; padding-top: 1rem; }
         .drawer-link { width: 100%; padding: 0.9rem; background: none; border: none; color: var(--text-muted); font-family: inherit; font-size: 0.78rem; cursor: pointer; margin-top: 0.4rem; }
         .payment-summary { display: grid; gap: 1px; background: var(--border); }

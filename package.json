@@ -16,6 +16,7 @@
     "framer-motion": "^12.38.0",
     "jspdf": "^4.2.1",
     "lucide-react": "^0.453.0",
+    "posthog-js": "^1.435.3",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.14.2"
