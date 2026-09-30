@@ -18,6 +18,13 @@ function SiteChrome() {
   const { pathname } = useLocation();
   const isAdmin = pathname.startsWith('/admin');
 
+  // React Router no resetea el scroll al navegar entre rutas (a diferencia de
+  // una recarga normal de página): sin esto, una página nueva hereda la
+  // posición de scroll de donde estabas antes de hacer clic en el link.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
   return (
     <div className="app-container">
       {!isAdmin && <Navbar />}
