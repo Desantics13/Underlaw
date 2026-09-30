@@ -21,6 +21,18 @@ const INTERNAL_NOTIFICATION_EMAIL = process.env.INTERNAL_NOTIFICATION_EMAIL || '
 // correo de "lanzamiento ya disponible". Sobreescribir por env en Railway.
 const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://underlaw.site').replace(/\/+$/, '');
 
+// Los datos que se interpolan acá (nombre, productos, etc.) vienen de inputs
+// públicos (formulario de checkout, inscripción a lanzamiento) sin garantía
+// de formato — sin esto, alguien podría inyectar HTML/enlaces falsos en los
+// correos que recibe el cliente o el equipo interno.
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function formatCOP(amount) {
   const n = Number(amount) || 0;
   return `$${n.toLocaleString('es-CO')} COP`;
@@ -61,7 +73,7 @@ class EmailService {
         subject: 'Comprobante de Pago - Under Law',
         html: `
           <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #000; border-bottom: 1px solid #eee; padding-bottom: 12px;">¡Gracias por tu compra, ${clientName}!</h2>
+            <h2 style="color: #000; border-bottom: 1px solid #eee; padding-bottom: 12px;">¡Gracias por tu compra, ${escapeHtml(clientName)}!</h2>
             <p style="color: #444;">Tu pedido en <strong>Under Law</strong> ha sido procesado exitosamente.</p>
             <p style="color: #444;">Adjunto a este correo encontrarás tu <strong>factura en PDF</strong> con todos los detalles de tu compra.</p>
             <br/>
@@ -116,23 +128,23 @@ class EmailService {
           <table style="border-collapse: collapse; width: 100%; font-size: 0.95em;">
             <tr>
               <td style="padding: 8px 12px; color: #888; white-space: nowrap; vertical-align: top;">Cliente</td>
-              <td style="padding: 8px 12px; color: #222;"><strong>${nombreCompleto}</strong></td>
+              <td style="padding: 8px 12px; color: #222;"><strong>${escapeHtml(nombreCompleto)}</strong></td>
             </tr>
             <tr style="background: #fafafa;">
               <td style="padding: 8px 12px; color: #888; white-space: nowrap; vertical-align: top;">Producto(s)</td>
-              <td style="padding: 8px 12px; color: #222;">${productos}</td>
+              <td style="padding: 8px 12px; color: #222;">${escapeHtml(productos)}</td>
             </tr>
             <tr>
               <td style="padding: 8px 12px; color: #888; white-space: nowrap; vertical-align: top;">Valor total</td>
-              <td style="padding: 8px 12px; color: #222;"><strong>${total}</strong></td>
+              <td style="padding: 8px 12px; color: #222;"><strong>${escapeHtml(total)}</strong></td>
             </tr>
             <tr style="background: #fafafa;">
               <td style="padding: 8px 12px; color: #888; white-space: nowrap; vertical-align: top;">N.º de pedido</td>
-              <td style="padding: 8px 12px; color: #222;">${numeroPedido}</td>
+              <td style="padding: 8px 12px; color: #222;">${escapeHtml(numeroPedido)}</td>
             </tr>
             <tr>
               <td style="padding: 8px 12px; color: #888; white-space: nowrap; vertical-align: top;">Fecha y hora</td>
-              <td style="padding: 8px 12px; color: #222;">${fechaHora}</td>
+              <td style="padding: 8px 12px; color: #222;">${escapeHtml(fechaHora)}</td>
             </tr>
           </table>
           <p style="color: #444; margin-top: 16px;">${attachments.length ? 'Se adjunta la misma factura en PDF enviada al cliente.' : 'No se pudo adjuntar la factura en PDF para esta compra (revisar logs).'}</p>
@@ -162,9 +174,9 @@ class EmailService {
       html: `
         <div style="font-family: Arial, sans-serif; background:#050505; padding:32px 20px; color:#e5e5e5;">
           <div style="max-width:560px; margin:0 auto; border:1px solid #1f1f1f; background:#0a0a0a; padding:40px;">
-            <p style="text-transform:uppercase; letter-spacing:0.25em; font-size:0.7rem; color:#8a8a8a; margin:0 0 24px;">${lanzamiento.nombre_lanzamiento}</p>
-            <h1 style="font-family:Georgia,'Times New Roman',serif; font-style:italic; font-weight:400; color:#fff; font-size:1.9rem; margin:0 0 16px;">${lanzamiento.nombre_producto}</h1>
-            <p style="color:#bdbdbd; line-height:1.6; margin:0 0 8px;">${nombre}, el lanzamiento al que te inscribiste ya está disponible para compra.</p>
+            <p style="text-transform:uppercase; letter-spacing:0.25em; font-size:0.7rem; color:#8a8a8a; margin:0 0 24px;">${escapeHtml(lanzamiento.nombre_lanzamiento)}</p>
+            <h1 style="font-family:Georgia,'Times New Roman',serif; font-style:italic; font-weight:400; color:#fff; font-size:1.9rem; margin:0 0 16px;">${escapeHtml(lanzamiento.nombre_producto)}</h1>
+            <p style="color:#bdbdbd; line-height:1.6; margin:0 0 8px;">${escapeHtml(nombre)}, el lanzamiento al que te inscribiste ya está disponible para compra.</p>
             <p style="color:#bdbdbd; line-height:1.6; margin:0 0 28px;">Precio: <strong style="color:#fff;">${formatCOP(lanzamiento.precio)}</strong></p>
             <a href="${enlaceProducto}" style="display:inline-block; background:#fff; color:#050505; text-decoration:none; text-transform:uppercase; letter-spacing:0.1em; font-size:0.8rem; font-weight:bold; padding:16px 32px;">Ver producto</a>
             <p style="font-size:0.8rem; color:#6b6b6b; margin:28px 0 0; word-break:break-all;">O copia este enlace: ${enlaceProducto}</p>
@@ -188,7 +200,7 @@ class EmailService {
         subject: 'Pago Confirmado - Under Law',
         html: `
           <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #000; border-bottom: 1px solid #eee; padding-bottom: 12px;">¡Gracias por tu compra, ${clientName}!</h2>
+            <h2 style="color: #000; border-bottom: 1px solid #eee; padding-bottom: 12px;">¡Gracias por tu compra, ${escapeHtml(clientName)}!</h2>
             <p style="color: #444;">Confirmamos que tu pago en <strong>Under Law</strong> fue aprobado exitosamente.</p>
             <p style="font-size: 0.85em; color: #888; margin-top: 20px; border-top: 1px solid #eee; padding-top: 12px;">© 2026 UNDER LAW — Todos los derechos reservados.</p>
           </div>
