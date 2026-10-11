@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import logoUnderlaw from '../assets/logo-underlaw.jpg';
 import { API_URL } from '../utils/adminApi';
+import ModeSwitch from './ModeSwitch';
 
 // El botón dorado de la nav solo aparece cuando hay un lanzamiento real activo
 // (programado -> ancla al bloque de inscripción con el nombre del drop, lanzado
@@ -29,7 +30,8 @@ const useDropCta = () => {
 const Navbar = () => {
   const cta = useDropCta();
   const { pathname } = useLocation();
-  const isHome = pathname === '/';
+  const isRacing = pathname === '/racing';
+  const isHome = pathname === '/' || isRacing;
 
   return (
     <nav className="nav-bar">
@@ -38,11 +40,13 @@ const Navbar = () => {
         {!isHome && <span className="nav-wordmark">UnderLaw</span>}
       </Link>
 
+      {isHome && <ModeSwitch active={isRacing ? 'racing' : 'home'} />}
+
       <div className="nav-links">
         {isHome ? (
           <>
-            <Link to="/products" className="nav-pill">Colección</Link>
-            <Link to="/#historia" className="nav-pill">Historia</Link>
+            <Link to="/products" className={cta ? 'nav-pill nav-pill-opt' : 'nav-pill'}>Colección</Link>
+            {!isRacing && <Link to="/#historia" className="nav-pill nav-pill-opt">Historia</Link>}
             {cta && <Link to={cta.to} className="nav-pill">{cta.label}</Link>}
           </>
         ) : (
@@ -91,6 +95,9 @@ const Navbar = () => {
         @media (max-width: 480px) {
           .nav-links { gap: 0.45rem; font-size: 0.56rem; letter-spacing: 0.08em; }
           .nav-pill { padding: 0.55rem 0.7rem; }
+          /* Con el interruptor Underlaw/Racing junto al logo no cabe todo:
+             en móvil se omiten los enlaces secundarios. */
+          .nav-pill-opt { display: none; }
         }
       `}</style>
     </nav>

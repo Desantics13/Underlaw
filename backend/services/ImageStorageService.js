@@ -25,11 +25,11 @@ const CLOUDINARY_FOLDER = 'under-law/productos';
 const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
-  const permitidos = ['image/jpeg', 'image/jpg', 'image/png'];
+  const permitidos = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
   if (permitidos.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Solo se permiten imágenes JPG o PNG'));
+    cb(new Error('Solo se permiten imágenes JPG, PNG o WebP'));
   }
 };
 
@@ -40,9 +40,11 @@ class ImageStorageService {
   // Sube el buffer que dejó multer en req.file a Cloudinary.
   // Devuelve { url, publicId }: "url" se guarda en la columna "imagen" (se usa
   // directo en el <img src>), "publicId" se guarda aparte para poder borrarla después.
-  async uploadImage(file) {
+  // "folder" es opcional: por defecto la carpeta de productos; el contenido del
+  // sitio (hero, Racing) pasa 'under-law/sitio'.
+  async uploadImage(file, folder = CLOUDINARY_FOLDER) {
     const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-    const result = await cloudinary.uploader.upload(base64, { folder: CLOUDINARY_FOLDER });
+    const result = await cloudinary.uploader.upload(base64, { folder });
     return { url: result.secure_url, publicId: result.public_id };
   }
 

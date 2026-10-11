@@ -3,12 +3,14 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import buddhaModelImg from '../assets/buddha-model.jpg';
-import heroRacingImg from '../assets/hero-racing.jpeg';
-import heroEstacionImg from '../assets/hero-estacion.jpeg';
+import heroRacingImg from '../assets/hero-racing.webp';
+import heroEstacionImg from '../assets/hero-estacion.webp';
 import shirtBuddhaImg from '../assets/shirt-buddha.png';
 import { API_URL } from '../utils/adminApi';
+import { useSitioContenido, optimizarImagen } from '../utils/sitioContenido';
 
-// Fondo del hero: fotos + posición de encuadre para cada una. Rota cada
+// Fondo del hero (respaldo): fotos + posición de encuadre para cada una. Se usa
+// cuando la zona "home_hero" del Admin (pestaña Imágenes) está vacía. Rota cada
 // DURACION_HERO ms con fundido cruzado y ligero zoom mientras está activa.
 const FONDO_HERO = [
   { src: buddhaModelImg, posicion: 'center 22%' },
@@ -60,11 +62,31 @@ const Home = () => {
   const shouldReduceMotion = useReducedMotion();
 
   // ── Rotador de fotos del hero ─────────────────────────────────────────
+  // Las fotos vienen del Admin (zona home_hero); si no hay ninguna, las del
+  // código. Mientras el backend responde no se pinta nada para no mostrar un
+  // destello de la foto equivocada (hay un tope de espera en el hook).
+  const { imagenes: sitioImagenes, listo: sitioListo } = useSitioContenido();
+  const subidasHero = sitioImagenes.home_hero;
+  const fondoHero = !sitioListo
+    ? []
+    : subidasHero && subidasHero.length > 0
+      ? subidasHero.map((img) => ({
+          key: `s${img.id}`,
+          src: optimizarImagen(img.url),
+          posicion: img.posicion || 'center center',
+          alt: img.alt || ''
+        }))
+      : FONDO_HERO.map((f, i) => ({ key: `d${i}`, ...f, alt: '' }));
+
   const [heroIndex, setHeroIndex] = useState(0);
+  const totalHero = fondoHero.length;
   useEffect(() => {
-    const iv = setInterval(() => setHeroIndex((i) => (i + 1) % FONDO_HERO.length), DURACION_HERO);
+    if (totalHero < 2) return undefined;
+    const iv = setInterval(() => setHeroIndex((i) => (i + 1) % totalHero), DURACION_HERO);
     return () => clearInterval(iv);
-  }, []);
+  }, [totalHero]);
+  // Si el carrusel quedó con menos fotos que el índice actual, vuelve al inicio.
+  const heroActivo = totalHero > 0 ? heroIndex % totalHero : 0;
 
   // ── Lanzamiento (drop con cuenta regresiva) ──────────────────────────────
   const [drop, setDrop] = useState(null);
@@ -187,7 +209,10 @@ const Home = () => {
     lanzamiento = {
       etiqueta: 'Recién llegado',
       nombre: PRODUCTO_RESPALDO.name,
-      imagen: PRODUCTO_RESPALDO.image,
+      // Zona "home_producto" del Admin; si está vacía, la imagen por defecto.
+      imagen: sitioImagenes.home_producto?.[0]?.url
+        ? optimizarImagen(sitioImagenes.home_producto[0].url)
+        : PRODUCTO_RESPALDO.image,
       texto: PRODUCTO_RESPALDO.desc,
       precio: PRODUCTO_RESPALDO.price,
       badge: null
@@ -205,30 +230,32 @@ const Home = () => {
       {/* ── Hero ── */}
       <section className="hero">
         <div className="hero-bg">
-          {FONDO_HERO.map((foto, i) => (
-            <div key={foto.src} className="hero-bg-layer" style={{ opacity: heroIndex === i ? 1 : 0 }}>
+          {fondoHero.map((foto, i) => (
+            <div key={foto.key} className="hero-bg-layer" style={{ opacity: heroActivo === i ? 1 : 0 }}>
               <img
                 src={foto.src}
-                alt=""
-                style={{ objectPosition: foto.posicion, transform: heroIndex === i ? 'scale(1.06)' : 'scale(1)' }}
+                alt={foto.alt}
+                style={{ objectPosition: foto.posicion, transform: heroActivo === i ? 'scale(1.06)' : 'scale(1)' }}
               />
             </div>
           ))}
           <div className="hero-gradient" />
         </div>
 
-        <div className="hero-dots">
-          {FONDO_HERO.map((foto, i) => (
-            <button
-              key={foto.src}
-              type="button"
-              aria-label="Ver imagen de fondo"
-              className="hero-dot"
-              style={{ width: heroIndex === i ? '28px' : '14px', background: heroIndex === i ? 'var(--gold)' : 'rgba(242,240,236,0.35)' }}
-              onClick={() => setHeroIndex(i)}
-            />
-          ))}
-        </div>
+        {totalHero > 1 && (
+          <div className="hero-dots">
+            {fondoHero.map((foto, i) => (
+              <button
+                key={foto.key}
+                type="button"
+                aria-label="Ver imagen de fondo"
+                className="hero-dot"
+                style={{ width: heroActivo === i ? '28px' : '14px', background: heroActivo === i ? 'var(--gold)' : 'rgba(242,240,236,0.35)' }}
+                onClick={() => setHeroIndex(i)}
+              />
+            ))}
+          </div>
+        )}
 
         <div className="hero-content">
           <motion.p {...reveal(shouldReduceMotion)} className="eyebrow hero-kicker">Legacy of Luxury · Est. MMXXVI</motion.p>

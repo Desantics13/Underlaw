@@ -18,6 +18,7 @@ const catalogoRoutes = require('./routes/catalogoRoutes');
 const notificacionRoutes = require('./routes/notificacionRoutes');
 const lanzamientoRoutes = require('./routes/lanzamientoRoutes');
 const seccionRoutes = require('./routes/seccionRoutes');
+const sitioRoutes = require('./routes/sitioRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const inventarioRoutes = require('./routes/inventarioRoutes');
 const LanzamientoService = require('./services/LanzamientoService');
@@ -63,6 +64,7 @@ app.use('/api/catalogo', catalogoRoutes);
 app.use('/api/notificaciones', notificacionRoutes);
 app.use('/api/lanzamientos', lanzamientoRoutes);
 app.use('/api/secciones', seccionRoutes);
+app.use('/api/sitio', sitioRoutes);
 app.use('/api/inventario', inventarioRoutes);
 
 // Reporta a Sentry cualquier error lanzado en las rutas anteriores; debe ir

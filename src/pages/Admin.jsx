@@ -7,6 +7,7 @@ import ProductosPanel from '../components/ProductosPanel';
 import LanzamientosPanel from '../components/LanzamientosPanel';
 import SeccionesPanel from '../components/SeccionesPanel';
 import InventarioPanel from '../components/InventarioPanel';
+import ImagenesPanel from '../components/ImagenesPanel';
 import { ADMIN_STYLES } from '../components/adminStyles';
 import { API_URL, adminFetch, getAdminToken, setAdminToken, clearAdminToken, onAdminSessionExpired } from '../utils/adminApi';
 
@@ -27,7 +28,8 @@ const TABS = [
   ['productos', 'Productos'],
   ['lanzamientos', 'Lanzamientos'],
   ['secciones', 'Secciones'],
-  ['inventario', 'Inventario']
+  ['inventario', 'Inventario'],
+  ['imagenes', 'Imágenes']
 ];
 
 const TITULOS = {
@@ -35,7 +37,8 @@ const TITULOS = {
   productos: ['Catálogo de productos', 'Crea, edita, suspende o elimina cada pieza del catálogo.'],
   lanzamientos: ['Lanzamientos', 'Programa los drops, su imagen y su fecha de apertura.'],
   secciones: ['Secciones de la colección', 'Aparecen como pestañas en la Colección, en el orden de esta lista, y solo si tienen al menos un producto activo.'],
-  inventario: ['Inventario', 'Carga las cantidades por talla de cada producto y de los próximos lanzamientos.']
+  inventario: ['Inventario', 'Carga las cantidades por talla de cada producto y de los próximos lanzamientos.'],
+  imagenes: ['Imágenes', 'Controla las imágenes y los videos del inicio y de Racing.']
 };
 
 const Admin = () => {
@@ -284,6 +287,8 @@ const Admin = () => {
           <SeccionesPanel />
         ) : activeView === 'inventario' ? (
           <InventarioPanel />
+        ) : activeView === 'imagenes' ? (
+          <ImagenesPanel />
         ) : (
           <>
             <div className="admin-content-head">

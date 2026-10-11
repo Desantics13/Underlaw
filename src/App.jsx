@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
+import Racing from './pages/Racing';
 import Products from './pages/Products';
 import Privacidad from './pages/Privacidad';
 import Footer from './components/Footer';
@@ -31,6 +32,7 @@ function SiteChrome() {
       <main>
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/racing" element={<Racing />} />
           <Route path="/products" element={<Products />} />
           <Route path="/privacidad" element={<Privacidad />} />
           <Route path="/admin" element={<Admin />} />
