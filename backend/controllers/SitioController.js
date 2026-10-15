@@ -17,25 +17,51 @@ const mensajeError = (error, porDefecto) =>
     ? 'Falta correr la migración database/migracion-imagenes-sitio.sql en esta base de datos.'
     : (error && error.message) || porDefecto;
 
+// Caché en memoria de la respuesta pública: los visitantes se atienden sin
+// consultar la BD. Cualquier escritura del Admin la borra (invalidarCache), y
+// el vencimiento acota el desfase si algún día corren varias réplicas.
+const CACHE_TTL_MS = 60 * 1000;
+let cache = null; // { datos, expira }
+// Sube con cada escritura: una lectura que empezó antes no guarda datos viejos.
+let versionCache = 0;
+
 class SitioController {
+  invalidarCache() {
+    cache = null;
+    versionCache++;
+  }
+
   // GET /api/sitio -> público. Si las tablas aún no existen (migración sin
   // correr) o la BD falla, responde vacío con 200 para que el front use sus
   // imágenes y videos por defecto.
   async obtener(req, res) {
     try {
-      const [imagenes, videos] = await Promise.all([
-        SitioImagenRepository.findAll(),
-        SitioVideoRepository.findAll()
-      ]);
+      if (!cache || cache.expira <= Date.now()) {
+        const version = versionCache;
+        const [imagenes, videos] = await Promise.all([
+          SitioImagenRepository.findAll(),
+          SitioVideoRepository.findAll()
+        ]);
 
-      const porZona = {};
-      imagenes.forEach((img) => {
-        if (!porZona[img.zona]) porZona[img.zona] = [];
-        porZona[img.zona].push(imagenPublica(img));
-      });
+        const porZona = {};
+        imagenes.forEach((img) => {
+          if (!porZona[img.zona]) porZona[img.zona] = [];
+          porZona[img.zona].push(imagenPublica(img));
+        });
 
-      res.set('Cache-Control', 'public, max-age=60');
-      res.status(200).json({ imagenes: porZona, videos });
+        const datos = { imagenes: porZona, videos };
+        if (version !== versionCache) {
+          // Hubo una escritura mientras se leía: se responde pero no se guarda.
+          res.set('Cache-Control', 'no-cache');
+          return res.status(200).json(datos);
+        }
+        cache = { datos, expira: Date.now() + CACHE_TTL_MS };
+      }
+
+      // no-cache: el navegador revalida siempre; si nada cambió, Express
+      // responde 304 por el ETag, sin cuerpo.
+      res.set('Cache-Control', 'no-cache');
+      res.status(200).json(cache.datos);
     } catch (error) {
       console.error('Error al obtener el contenido del sitio:', error.message);
       res.set('Cache-Control', 'no-store');

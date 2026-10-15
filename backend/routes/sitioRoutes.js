@@ -20,12 +20,21 @@ const handleUpload = (req, res, next) => {
 router.get('/', SitioController.obtener.bind(SitioController));
 
 // ── Admin (protegidas) ──
-router.post('/imagenes', requireAdminAuth, handleUpload, SitioController.crearImagen.bind(SitioController));
-router.put('/imagenes/:id', requireAdminAuth, handleUpload, SitioController.actualizarImagen.bind(SitioController));
-router.delete('/imagenes/:id', requireAdminAuth, SitioController.eliminarImagen.bind(SitioController));
+// Toda escritura (ya autenticada) borra la caché pública al empezar y al
+// terminar, haya salido bien o mal, así el sitio refleja el cambio en la
+// siguiente visita.
+const invalidaCache = (req, res, next) => {
+  SitioController.invalidarCache();
+  res.on('finish', () => SitioController.invalidarCache());
+  next();
+};
 
-router.post('/videos', requireAdminAuth, SitioController.crearVideo.bind(SitioController));
-router.put('/videos/:id', requireAdminAuth, SitioController.actualizarVideo.bind(SitioController));
-router.delete('/videos/:id', requireAdminAuth, SitioController.eliminarVideo.bind(SitioController));
+router.post('/imagenes', requireAdminAuth, invalidaCache, handleUpload, SitioController.crearImagen.bind(SitioController));
+router.put('/imagenes/:id', requireAdminAuth, invalidaCache, handleUpload, SitioController.actualizarImagen.bind(SitioController));
+router.delete('/imagenes/:id', requireAdminAuth, invalidaCache, SitioController.eliminarImagen.bind(SitioController));
+
+router.post('/videos', requireAdminAuth, invalidaCache, SitioController.crearVideo.bind(SitioController));
+router.put('/videos/:id', requireAdminAuth, invalidaCache, SitioController.actualizarVideo.bind(SitioController));
+router.delete('/videos/:id', requireAdminAuth, invalidaCache, SitioController.eliminarVideo.bind(SitioController));
 
 module.exports = router;
