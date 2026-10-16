@@ -1,5 +1,8 @@
 const SitioImagenRepository = require('../repositories/SitioImagenRepository');
 const SitioVideoRepository = require('../repositories/SitioVideoRepository');
+const SitioAjusteRepository = require('../repositories/SitioAjusteRepository');
+const CatalogoProductoRepository = require('../repositories/CatalogoProductoRepository');
+const LanzamientoRepository = require('../repositories/LanzamientoRepository');
 const SitioContenido = require('../models/SitioContenido');
 const { imageStorageService } = require('../services/ImageStorageService');
 
@@ -16,6 +19,47 @@ const mensajeError = (error, porDefecto) =>
   error && error.code === 'ER_NO_SUCH_TABLE'
     ? 'Falta correr la migración database/migracion-imagenes-sitio.sql en esta base de datos.'
     : (error && error.message) || porDefecto;
+
+const CLAVE_PRODUCTO_DESTACADO = 'producto_destacado_id';
+
+// Producto del bloque de producto del inicio (cuando no hay lanzamiento
+// activo): el elegido en el Admin si sigue activo; si no, el activo más
+// reciente del catálogo. Cada paso tolera que su tabla aún no exista.
+const obtenerProductoDestacado = async () => {
+  let idElegido = null;
+  try {
+    const valor = await SitioAjusteRepository.get(CLAVE_PRODUCTO_DESTACADO);
+    idElegido = valor ? Number(valor) : null;
+  } catch (error) {
+    if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
+  }
+
+  let producto = null;
+  if (idElegido) {
+    const elegido = await CatalogoProductoRepository.findById(idElegido);
+    if (elegido && elegido.estado === 'activo') producto = elegido;
+  }
+  const elegido = !!producto;
+  if (!producto) producto = await CatalogoProductoRepository.findMasRecienteActivo();
+  if (!producto) return null;
+
+  let esLanzamiento = false;
+  try {
+    esLanzamiento = await LanzamientoRepository.existeConProducto(producto.id);
+  } catch (error) {
+    if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
+  }
+
+  return {
+    id: producto.id,
+    nombre: producto.nombre_producto,
+    descripcion: producto.descripcion || null,
+    precio: Number(producto.precio),
+    imagen: producto.imagenes?.[0] || producto.imagen || null,
+    es_lanzamiento: esLanzamiento,
+    elegido
+  };
+};
 
 // Caché en memoria de la respuesta pública: los visitantes se atienden sin
 // consultar la BD. Cualquier escritura del Admin la borra (invalidarCache), y
@@ -49,7 +93,16 @@ class SitioController {
           porZona[img.zona].push(imagenPublica(img));
         });
 
-        const datos = { imagenes: porZona, videos };
+        // Si el catálogo falla, el bloque usa su respaldo pero las imágenes y
+        // videos del sitio igual se responden.
+        let productoDestacado = null;
+        try {
+          productoDestacado = await obtenerProductoDestacado();
+        } catch (error) {
+          console.error('Error al obtener el producto destacado:', error.message);
+        }
+
+        const datos = { imagenes: porZona, videos, producto_destacado: productoDestacado };
         if (version !== versionCache) {
           // Hubo una escritura mientras se leía: se responde pero no se guarda.
           res.set('Cache-Control', 'no-cache');
@@ -65,7 +118,38 @@ class SitioController {
     } catch (error) {
       console.error('Error al obtener el contenido del sitio:', error.message);
       res.set('Cache-Control', 'no-store');
-      res.status(200).json({ imagenes: {}, videos: [] });
+      res.status(200).json({ imagenes: {}, videos: [], producto_destacado: null });
+    }
+  }
+
+  // PUT /api/sitio/producto-destacado { producto_id } -> null o "" = automático
+  async elegirProductoDestacado(req, res) {
+    try {
+      const crudo = req.body.producto_id;
+      let valor = null;
+      if (crudo !== null && crudo !== undefined && crudo !== '') {
+        const id = Number(crudo);
+        if (!Number.isInteger(id) || id <= 0) {
+          return res.status(400).json({ error: 'Producto no válido.' });
+        }
+        const producto = await CatalogoProductoRepository.findById(id);
+        if (!producto) {
+          return res.status(404).json({ error: 'Ese producto ya no existe en el catálogo.' });
+        }
+        if (producto.estado !== 'activo') {
+          return res.status(400).json({ error: 'Ese producto está suspendido. Actívalo en Productos o elige otro.' });
+        }
+        valor = String(id);
+      }
+
+      await SitioAjusteRepository.set(CLAVE_PRODUCTO_DESTACADO, valor);
+      res.status(200).json({ producto_destacado: await obtenerProductoDestacado() });
+    } catch (error) {
+      console.error('Error al elegir el producto destacado:', error);
+      const mensaje = error && error.code === 'ER_NO_SUCH_TABLE'
+        ? 'Falta correr la migración database/migracion-producto-destacado.sql en esta base de datos.'
+        : 'Error al guardar el producto destacado';
+      res.status(500).json({ error: mensaje });
     }
   }
 

@@ -9,7 +9,7 @@ import { API_URL } from './adminApi';
 // usa sus imágenes empaquetadas de respaldo: el sitio se ve igual que antes.
 // ─────────────────────────────────────────────────────────────────────────
 
-const VACIO = { imagenes: {}, videos: [] };
+const VACIO = { imagenes: {}, videos: [], productoDestacado: null };
 
 // Si el backend tarda más que esto, las páginas pintan sus respaldos y, si la
 // respuesta llega después, cambian a lo que venga (sin quedarse en blanco).
@@ -20,7 +20,8 @@ let promesa = null;
 
 const normalizar = (data) => ({
   imagenes: data && typeof data.imagenes === 'object' && data.imagenes ? data.imagenes : {},
-  videos: Array.isArray(data?.videos) ? data.videos : []
+  videos: Array.isArray(data?.videos) ? data.videos : [],
+  productoDestacado: data && data.producto_destacado && data.producto_destacado.id ? data.producto_destacado : null
 });
 
 // Una sola petición por carga de página; el resultado queda en memoria.
@@ -45,7 +46,7 @@ export const invalidarSitioContenido = () => {
   promesa = null;
 };
 
-// { imagenes, videos, listo }. "listo" pasa a true cuando llegó la respuesta o
+// { imagenes, videos, productoDestacado, listo }. "listo" pasa a true cuando llegó la respuesta o
 // se agotó la espera máxima; hasta entonces las páginas evitan pintar el
 // respaldo para no mostrar un "destello" de la imagen equivocada.
 export const useSitioContenido = () => {
@@ -65,7 +66,12 @@ export const useSitioContenido = () => {
     };
   }, []);
 
-  return { imagenes: estado.contenido.imagenes, videos: estado.contenido.videos, listo: estado.listo };
+  return {
+    imagenes: estado.contenido.imagenes,
+    videos: estado.contenido.videos,
+    productoDestacado: estado.contenido.productoDestacado,
+    listo: estado.listo
+  };
 };
 
 // Cloudinary: pide formato y calidad automáticos y limita el ancho, para que

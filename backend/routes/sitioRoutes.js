@@ -33,6 +33,8 @@ router.post('/imagenes', requireAdminAuth, invalidaCache, handleUpload, SitioCon
 router.put('/imagenes/:id', requireAdminAuth, invalidaCache, handleUpload, SitioController.actualizarImagen.bind(SitioController));
 router.delete('/imagenes/:id', requireAdminAuth, invalidaCache, SitioController.eliminarImagen.bind(SitioController));
 
+router.put('/producto-destacado', requireAdminAuth, invalidaCache, SitioController.elegirProductoDestacado.bind(SitioController));
+
 router.post('/videos', requireAdminAuth, invalidaCache, SitioController.crearVideo.bind(SitioController));
 router.put('/videos/:id', requireAdminAuth, invalidaCache, SitioController.actualizarVideo.bind(SitioController));
 router.delete('/videos/:id', requireAdminAuth, invalidaCache, SitioController.eliminarVideo.bind(SitioController));

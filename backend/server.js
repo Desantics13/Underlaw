@@ -22,6 +22,7 @@ const sitioRoutes = require('./routes/sitioRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const inventarioRoutes = require('./routes/inventarioRoutes');
 const LanzamientoService = require('./services/LanzamientoService');
+const SitioController = require('./controllers/SitioController');
 
 const app = express();
 
@@ -55,6 +56,18 @@ app.use(cors(corsOptions));
 
 // Sirve las imágenes de productos guardadas localmente (ver services/ImageStorageService.js)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// El producto destacado de /api/sitio sale del catálogo: un cambio exitoso en
+// productos o lanzamientos borra su caché. Las inscripciones públicas no lo
+// afectan y se excluyen.
+app.use(['/api/catalogo', '/api/lanzamientos'], (req, res, next) => {
+  if (req.method !== 'GET' && !req.path.endsWith('/inscritos')) {
+    res.on('finish', () => {
+      if (res.statusCode < 400) SitioController.invalidarCache();
+    });
+  }
+  next();
+});
 
 // Rutas base
 app.use('/api/admin', adminRoutes);

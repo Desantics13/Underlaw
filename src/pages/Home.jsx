@@ -19,7 +19,9 @@ const FONDO_HERO = [
 ];
 const DURACION_HERO = 5200;
 
-// Producto de respaldo cuando no hay ningún lanzamiento activo en el backend.
+// Último respaldo del bloque de producto: solo se usa si el backend no
+// responde. Normalmente el bloque muestra el producto destacado real del
+// catálogo (elegido en Admin > Imágenes, o el activo más reciente).
 const PRODUCTO_RESPALDO = {
   name: 'Oversized Buddha Tee',
   desc: 'Algodón premium de 240 gsm, corte oversized y estampado propio. Nuestra pieza más pedida, siempre en serie corta.',
@@ -29,7 +31,7 @@ const PRODUCTO_RESPALDO = {
 
 const FAQS = [
   { q: '¿Cómo funcionan los drops?', a: 'Cada drop se anuncia con fecha y hora exacta. Te inscribes con tu correo y te avisamos cuando abre la compra. Las unidades son limitadas y no se reponen.' },
-  { q: '¿Cuánto tarda el envío?', a: 'Entre 2 y 5 días hábiles a ciudades principales de Colombia. Te enviamos la guía de rastreo por WhatsApp en cuanto el pedido sale.' },
+  { q: '¿Cuánto tarda el envío?', a: 'Entre 1 y 3 días hábiles a ciudades principales de Colombia. Te enviamos la guía de rastreo por WhatsApp en cuanto el pedido sale.' },
   { q: '¿Qué talla pido?', a: 'El corte es oversized unisex. Si prefieres un calce más ajustado, pide una talla menos de la que usas normalmente.' },
   { q: '¿Cómo cuido la prenda?', a: 'Lavado a mano o en ciclo delicado con agua fría, al revés. Sin secadora ni blanqueador. Plancha por el lado interno para proteger el estampado.' },
   { q: '¿Puedo cambiar o devolver?', a: 'Sí. Tienes 5 días desde que recibes el pedido para solicitar cambio de talla, siempre que la prenda esté sin uso y con su etiqueta.' },
@@ -65,7 +67,7 @@ const Home = () => {
   // Las fotos vienen del Admin (zona home_hero); si no hay ninguna, las del
   // código. Mientras el backend responde no se pinta nada para no mostrar un
   // destello de la foto equivocada (hay un tope de espera en el hook).
-  const { imagenes: sitioImagenes, listo: sitioListo } = useSitioContenido();
+  const { imagenes: sitioImagenes, productoDestacado, listo: sitioListo } = useSitioContenido();
   const subidasHero = sitioImagenes.home_hero;
   const fondoHero = !sitioListo
     ? []
@@ -205,25 +207,35 @@ const Home = () => {
       precio: `$${Number(drop.precio).toLocaleString('es-CO')} COP`,
       badge: drop.nombre_lanzamiento
     };
+  } else if (productoDestacado) {
+    // Producto real del catálogo. "Recién llegado" si nació de un lanzamiento;
+    // si es un producto normal, "Activo".
+    lanzamiento = {
+      etiqueta: productoDestacado.es_lanzamiento ? 'Recién llegado' : 'Activo',
+      nombre: productoDestacado.nombre,
+      imagen: productoDestacado.imagen ? optimizarImagen(productoDestacado.imagen) : PRODUCTO_RESPALDO.image,
+      texto: productoDestacado.descripcion || 'Serie corta, sin reposición: cuando se agota, no vuelve.',
+      precio: `$${Number(productoDestacado.precio).toLocaleString('es-CO')} COP`,
+      badge: null
+    };
   } else {
     lanzamiento = {
       etiqueta: 'Recién llegado',
       nombre: PRODUCTO_RESPALDO.name,
-      // Zona "home_producto" del Admin; si está vacía, la imagen por defecto.
-      imagen: sitioImagenes.home_producto?.[0]?.url
-        ? optimizarImagen(sitioImagenes.home_producto[0].url)
-        : PRODUCTO_RESPALDO.image,
+      imagen: PRODUCTO_RESPALDO.image,
       texto: PRODUCTO_RESPALDO.desc,
       precio: PRODUCTO_RESPALDO.price,
       badge: null
     };
   }
 
+  const linkProductoDestacado = productoDestacado ? `/products?producto=${productoDestacado.id}` : '/products';
+
   const navCta = dropProgramado
     ? { label: 'Próximo drop', to: '/#lanzamiento' }
     : dropLanzado
       ? { label: 'Comprar ahora', to: drop.producto_id ? `/products?producto=${drop.producto_id}` : '/products' }
-      : { label: 'Ver producto', to: '/products' };
+      : { label: 'Ver producto', to: linkProductoDestacado };
 
   return (
     <div className="home-page">
@@ -273,7 +285,7 @@ const Home = () => {
         <div className="marquee-track">
           {[0, 1].map((rep) => (
             <div key={rep} className="marquee-set">
-              <span>Algodón 240 gsm</span><span className="marquee-dot">·</span>
+              <span>Tela en algodón</span><span className="marquee-dot">·</span>
               <span>Envíos a todo Colombia</span><span className="marquee-dot">·</span>
               <span>Cartagena, CO</span>
             </div>
@@ -312,7 +324,7 @@ const Home = () => {
                 <Link to={drop.producto_id ? `/products?producto=${drop.producto_id}` : '/products'} className="premium-button">Comprar ahora</Link>
               )}
               {!dropProgramado && !dropLanzado && (
-                <Link to="/products" className="premium-button">Ver producto</Link>
+                <Link to={linkProductoDestacado} className="premium-button">Ver producto</Link>
               )}
               <span className="lanzamiento-precio tabular">{lanzamiento.precio}</span>
             </div>
@@ -334,7 +346,7 @@ const Home = () => {
             <p className="historia-texto">UnderLaw nació en Cartagena, Colombia en el 2026 estampando tiradas de 50 camisetas. Seguimos igual: series cortas, telas pesadas y estampados propios. Cuando se agota un drop, no vuelve.</p>
           </motion.div>
           <motion.div {...reveal(shouldReduceMotion, 0.1)} className="historia-tabla">
-            {[['Tela', 'Algodón 240 gsm'], ['Corte', 'Oversized unisex'], ['Serie', '50 por drop'], ['Envío', '2 a 5 días hábiles']].map(([k, v]) => (
+            {[['Tela', 'Algodón'], ['Corte', 'Oversized unisex'], ['Serie', 'Hasta agotar'], ['Envío', '1 a 3 días hábiles']].map(([k, v]) => (
               <div key={k} className="historia-fila">
                 <span className="historia-fila-label">{k}</span>
                 <span className="historia-fila-valor">{v}</span>

@@ -18,7 +18,7 @@ const ModeSwitch = ({ active }) => (
       aria-selected={active === 'racing'}
       className={`mode-tab${active === 'racing' ? ' is-active' : ''}`}
     >
-      <span className="mode-extra">Underlaw </span>Racing
+      Racing
     </Link>
 
     <style>{`
@@ -43,7 +43,6 @@ const ModeSwitch = ({ active }) => (
       .mode-tab.is-active + .mode-tab, .mode-tab + .mode-tab.is-active { border-left: 1px solid var(--gold); }
       @media (max-width: 480px) {
         .mode-tab { padding: 0.5rem 0.65rem; font-size: 0.56rem; letter-spacing: 0.1em; }
-        .mode-extra { display: none; }
       }
     `}</style>
   </div>

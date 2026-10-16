@@ -119,6 +119,12 @@ class LanzamientoRepository {
     await db.execute('UPDATE lanzamientos SET producto_id = ? WHERE id = ?', [productoId, id]);
   }
 
+  // true si el producto del catálogo nació de un lanzamiento (drop ya lanzado).
+  async existeConProducto(productoId) {
+    const [rows] = await db.execute('SELECT 1 FROM lanzamientos WHERE producto_id = ? LIMIT 1', [productoId]);
+    return rows.length > 0;
+  }
+
   async findVencidosProgramados() {
     const [rows] = await db.execute(
       "SELECT id FROM lanzamientos WHERE estado = 'programado' AND fecha_lanzamiento <= UTC_TIMESTAMP()"

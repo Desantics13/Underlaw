@@ -34,9 +34,21 @@ const FOTO_IZQUIERDA = buscarFoto('moto-izquierda') || fotoIzquierdaDefault;
 const FOTO_DERECHA = buscarFoto('moto-derecha') || fotoDerechaDefault;
 
 const PILARES = [
-  { titulo: 'Hecho para rodar', texto: 'Prendas pensadas para quienes viven sobre dos ruedas: cómodas en la moto y firmes en la calle.' },
-  { titulo: 'Series cortas', texto: 'Igual que el resto de Underlaw: tiradas limitadas, sin reposición. Cuando se agota, no vuelve.' },
-  { titulo: 'La calle es la pista', texto: 'Fotografiamos cada pieza donde nace: estaciones, parqueaderos y noche en Cartagena.' }
+  {
+    titulo: 'Hecho para rodar',
+    frase: 'Vestimos una mentalidad',
+    texto: 'Cada prenda está pensada para quienes llevan la cultura biker en su esencia. Diseños con carácter, comodidad y personalidad, creados para acompañarte dentro y fuera de la carretera.'
+  },
+  {
+    titulo: 'Series cortas',
+    frase: 'No nacimos para producir en masa',
+    texto: 'Cada colección tiene su propio carácter y unidades limitadas. No se trata de vestir como todos, sino de encontrar aquello que representa quién eres. Cuando una edición se agota, su historia queda en la carretera.'
+  },
+  {
+    titulo: 'La calle es la pista',
+    frase: 'La cultura no se explica. Se vive.',
+    texto: 'Desde el rugido de los motores hasta las historias que nacen en cada rodada, UnderLaw Racing representa a quienes encuentran en las motos mucho más que velocidad: una comunidad, una pasión y una identidad que no necesita permiso para existir.'
+  }
 ];
 
 const reveal = (reducido, delay = 0) => ({
@@ -234,8 +246,8 @@ const Racing = () => {
           <div className="racing-pilares">
             {PILARES.map((p, i) => (
               <motion.div key={p.titulo} {...reveal(reducido, i * 0.08)} className="racing-pilar">
-                <span className="racing-pilar-num tabular">{String(i + 1).padStart(2, '0')}</span>
-                <h3>{p.titulo}</h3>
+                <span className="racing-pilar-num tabular">{String(i + 1).padStart(2, '0')} — {p.titulo}</span>
+                <h3>{p.frase}</h3>
                 <p>{p.texto}</p>
               </motion.div>
             ))}
@@ -334,9 +346,9 @@ const Racing = () => {
         @media (min-width: 900px) {
           .racing-pilares { grid-template-columns: repeat(3, 1fr); }
           .racing-pilar { padding: clamp(2.25rem, 4vw, 3.25rem) clamp(1.75rem, 3vw, 2.75rem); text-align: center; }
-          .racing-pilares .racing-pilar p { margin-left: auto; margin-right: auto; max-width: 30ch; }
+          .racing-pilares .racing-pilar p { margin-left: auto; margin-right: auto; max-width: 36ch; }
         }
-        .racing-pilar-num { font-size: 0.66rem; letter-spacing: 0.2em; color: var(--gold); }
+        .racing-pilar-num { font-size: 0.66rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); }
         .racing-pilar h3 { font-size: 1.5rem; margin: 0.9rem 0 0.7rem; }
         .racing-pilar p { color: var(--text-tertiary); line-height: 1.75; margin: 0; font-size: 0.95rem; }
 

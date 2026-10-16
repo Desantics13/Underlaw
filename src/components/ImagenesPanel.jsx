@@ -7,7 +7,6 @@ import { invalidarSitioContenido, extraerIdYoutube, optimizarImagen } from '../u
 import buddhaModelImg from '../assets/buddha-model.jpg';
 import heroRacingImg from '../assets/hero-racing.webp';
 import heroEstacionImg from '../assets/hero-estacion.webp';
-import shirtBuddhaImg from '../assets/shirt-buddha.png';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Panel "Imágenes": controla las imágenes y videos del sitio público.
@@ -27,14 +26,6 @@ const ZONAS = [
       { src: heroRacingImg, posicion: 'center 38%' },
       { src: heroEstacionImg, posicion: 'center 58%' }
     ]
-  },
-  {
-    zona: 'home_producto',
-    titulo: 'Inicio — producto destacado',
-    donde: 'Imagen del bloque "Recién llegado" del inicio. Cuando hay un lanzamiento activo, la imagen sale de ese lanzamiento (se edita en Lanzamientos).',
-    multiple: false,
-    proporcion: '4 / 5',
-    respaldo: [{ src: shirtBuddhaImg, posicion: 'center center' }]
   },
   {
     zona: 'racing_izquierda',
@@ -67,8 +58,17 @@ const posicionAPorcentaje = (posicion) => {
 };
 const porcentajeAPosicion = (valor) => `center ${valor}%`;
 
+const formatoPrecio = (precio) => `$${Number(precio).toLocaleString('es-CO')} COP`;
+
+const leerContenido = (d) => ({
+  imagenes: d.imagenes || {},
+  videos: Array.isArray(d.videos) ? d.videos : [],
+  productoDestacado: d.producto_destacado || null
+});
+
 const ImagenesPanel = () => {
-  const [data, setData] = useState({ imagenes: {}, videos: [] });
+  const [data, setData] = useState({ imagenes: {}, videos: [], productoDestacado: null });
+  const [productos, setProductos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [errores, setErrores] = useState({});
@@ -90,7 +90,7 @@ const ImagenesPanel = () => {
       const res = await adminFetch('/api/sitio', { cache: 'no-store' });
       if (!res.ok) throw new Error('respuesta no válida');
       const d = await res.json();
-      setData({ imagenes: d.imagenes || {}, videos: Array.isArray(d.videos) ? d.videos : [] });
+      setData(leerContenido(d));
       setLoadError('');
     } catch (error) {
       console.error('Error al cargar el contenido del sitio:', error);
@@ -107,7 +107,7 @@ const ImagenesPanel = () => {
         const res = await adminFetch('/api/sitio', { cache: 'no-store' });
         if (!res.ok) throw new Error('respuesta no válida');
         const d = await res.json();
-        if (vivo) setData({ imagenes: d.imagenes || {}, videos: Array.isArray(d.videos) ? d.videos : [] });
+        if (vivo) setData(leerContenido(d));
       } catch (error) {
         console.error('Error al cargar el contenido del sitio:', error);
         if (vivo) setLoadError('No se pudo cargar el contenido del sitio. Revisa que el backend esté activo.');
@@ -115,8 +115,41 @@ const ImagenesPanel = () => {
         if (vivo) setLoading(false);
       }
     })();
+    // Productos del catálogo para el selector del producto destacado.
+    (async () => {
+      try {
+        const res = await adminFetch('/api/catalogo/admin', { cache: 'no-store' });
+        if (!res.ok) throw new Error('respuesta no válida');
+        const lista = await res.json();
+        if (vivo) setProductos(Array.isArray(lista) ? lista : []);
+      } catch (error) {
+        console.error('Error al cargar los productos:', error);
+        if (vivo) setError('producto', 'No se pudieron cargar los productos del catálogo.');
+      }
+    })();
     return () => { vivo = false; };
   }, []);
+
+  // ── Producto destacado ─────────────────────────────────────────────────
+
+  const elegirProducto = async (valor) => {
+    setError('producto', '');
+    setOcupado('producto');
+    try {
+      const res = await adminFetch('/api/sitio/producto-destacado', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ producto_id: valor === '' ? null : Number(valor) })
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'No se pudo guardar el producto destacado');
+      await guardado();
+    } catch (error) {
+      setError('producto', error.message);
+    } finally {
+      setOcupado('');
+    }
+  };
 
   // Tras cualquier cambio guardado: refresca la lista y descarta la caché del
   // sitio público para que Home/Racing vuelvan a pedir el contenido.
@@ -384,6 +417,58 @@ const ImagenesPanel = () => {
     );
   };
 
+  const renderProductoDestacado = () => {
+    const p = data.productoDestacado;
+    const valor = p && p.elegido ? String(p.id) : '';
+    return (
+      <section className="img-zona">
+        <div className="img-zona-head">
+          <div>
+            <h2 className="img-zona-titulo">Inicio — producto destacado</h2>
+            <p className="img-zona-donde">
+              Producto del bloque de producto del inicio cuando no hay un lanzamiento activo. Nombre, descripción, precio e imagen salen del producto (se editan en Productos). Si nació de un lanzamiento dice "Recién llegado"; si no, "Activo".
+            </p>
+          </div>
+        </div>
+
+        {errores.producto && <p className="admin-error img-zona-error">{errores.producto}</p>}
+
+        <div className="img-producto">
+          <label className="admin-field img-producto-select">
+            <span>Producto</span>
+            <select value={valor} onChange={(e) => elegirProducto(e.target.value)} disabled={!!ocupado}>
+              <option value="">Automático — el producto activo más reciente</option>
+              {productos.map((prod) => (
+                <option key={prod.id} value={prod.id} disabled={prod.estado !== 'activo'}>
+                  {prod.nombre_producto} · {formatoPrecio(prod.precio)}{prod.estado !== 'activo' ? ' (suspendido)' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {p ? (
+            <div className="img-producto-previa">
+              <div className="img-thumb" style={{ aspectRatio: '4 / 5', width: '120px', flexShrink: 0 }}>
+                {p.imagen && <img src={optimizarImagen(p.imagen, 300)} alt={p.nombre} />}
+                {ocupado === 'producto' && <span className="img-thumb-ocupado">Guardando…</span>}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <span className="img-producto-etiqueta">{p.es_lanzamiento ? 'Recién llegado' : 'Activo'}</span>
+                <span className="img-producto-nombre">{p.nombre}</span>
+                <span className="img-producto-precio">{formatoPrecio(p.precio)}</span>
+                {!p.elegido && <span className="img-producto-auto">Elegido automáticamente</span>}
+              </div>
+            </div>
+          ) : (
+            <p className="img-vacia-texto" style={{ margin: 0 }}>
+              <ImageIcon size={15} /> No hay productos activos en el catálogo; el inicio usa su producto por defecto.
+            </p>
+          )}
+        </div>
+      </section>
+    );
+  };
+
   const videos = data.videos;
   const idPrevisualizacion = videoForm ? extraerIdYoutube(videoForm.url) : null;
 
@@ -393,7 +478,7 @@ const ImagenesPanel = () => {
         <div>
           <h1 className="admin-content-title">Imágenes y videos del sitio</h1>
           <p className="admin-content-sub">
-            Controla las fotos del inicio y de Racing. Si una zona está vacía, el sitio usa su imagen por defecto. Los cambios se ven en el sitio en menos de un minuto.
+            Controla las fotos del inicio y de Racing. Si una zona está vacía, el sitio usa su imagen por defecto. Los cambios se ven en el sitio al recargar la página.
           </p>
         </div>
       </div>
@@ -404,7 +489,9 @@ const ImagenesPanel = () => {
         <p style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '3rem 0' }}>Cargando imágenes...</p>
       ) : (
         <>
-          {ZONAS.map(renderZona)}
+          {renderZona(ZONAS[0])}
+          {renderProductoDestacado()}
+          {ZONAS.slice(1).map(renderZona)}
 
           {/* ── Videos de Racing ── */}
           <section className="img-zona">
@@ -597,6 +684,18 @@ const ImagenesPanel = () => {
           background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 2px; display: flex;
         }
         .img-orden button:disabled { color: var(--border-strong); cursor: not-allowed; }
+
+        .img-producto {
+          padding: 1.25rem clamp(1.1rem, 3vw, 1.75rem) 1.5rem;
+          display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-start;
+        }
+        .img-producto-select { flex: 1 1 280px; max-width: 460px; }
+        .img-producto-previa { display: flex; gap: 1rem; align-items: center; flex: 1 1 260px; }
+        .img-producto-previa > div > span { display: block; }
+        .img-producto-etiqueta { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.2em; color: var(--gold); margin-bottom: 0.4rem; }
+        .img-producto-nombre { font-family: var(--font-serif); font-size: 1.2rem; overflow-wrap: anywhere; }
+        .img-producto-precio { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem; }
+        .img-producto-auto { font-size: 0.7rem; color: var(--text-dim); margin-top: 0.5rem; }
 
         .img-video-thumb { width: 96px; height: 54px; object-fit: cover; border: 1px solid var(--border); flex-shrink: 0; }
         .img-video-link { display: block; margin-top: 0.25rem; font-size: 0.75rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

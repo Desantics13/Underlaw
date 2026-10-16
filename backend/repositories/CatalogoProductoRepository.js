@@ -58,6 +58,14 @@ class CatalogoProductoRepository {
     return conImagenes;
   }
 
+  // Producto destacado automático del inicio: el activo más reciente.
+  async findMasRecienteActivo() {
+    const [rows] = await db.execute("SELECT * FROM catalogo_productos WHERE estado = 'activo' ORDER BY id DESC LIMIT 1");
+    if (!rows[0]) return null;
+    const [conImagenes] = await this._conImagenes(rows);
+    return conImagenes;
+  }
+
   async create({ nombre_lanzamiento, nombre_producto, precio, imagen, imagen_public_id, descripcion, detalle, tallas, seccion_id }) {
     const [result] = await db.execute(
       `INSERT INTO catalogo_productos

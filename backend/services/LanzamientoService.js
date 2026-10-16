@@ -72,6 +72,8 @@ class LanzamientoService {
 
     // 2. Enlazar el lanzamiento con su producto ya creado.
     await LanzamientoRepository.setProductoId(id, producto.id);
+    // El producto destacado del inicio puede cambiar (nuevo producto activo).
+    require('../controllers/SitioController').invalidarCache();
 
     // 3. Avisar al Admin por la campanita.
     try {
