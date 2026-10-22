@@ -73,7 +73,7 @@ const QuickViewModal = ({ product, onClose, onAddToCart }) => {
 
         <div className="quickview-grid">
           <div className="quickview-image" style={{ position: 'relative', aspectRatio: '3/4', backgroundColor: 'var(--bg-tertiary)', overflow: 'hidden' }}>
-            <ProductImageCarousel images={images} alt={product.name} />
+            <ProductImageCarousel images={images} alt={product.name} ancho={1200} />
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', padding: '2.5rem' }}>

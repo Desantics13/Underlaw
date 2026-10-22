@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { optimizarImagen } from '../utils/sitioContenido';
 
 // Carrusel de imágenes reutilizable: casilla de imagen de un producto + flechas
 // izquierda/derecha funcionales. Se usa en el panel de Admin, en la tarjeta del
@@ -21,7 +22,9 @@ const arrowStyle = {
   zIndex: 2
 };
 
-const ProductImageCarousel = ({ images, alt, imgClassName, imgStyle, arrowSize = 18 }) => {
+// "ancho": ancho máximo en px que se le pide a Cloudinary (formato y calidad
+// automáticos). Con el doble del tamaño en pantalla se ve nítido en celulares.
+const ProductImageCarousel = ({ images, alt, imgClassName, imgStyle, arrowSize = 18, ancho = 800 }) => {
   const [index, setIndex] = useState(0);
 
   if (!images || images.length === 0) return null;
@@ -41,8 +44,10 @@ const ProductImageCarousel = ({ images, alt, imgClassName, imgStyle, arrowSize =
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <img
-        src={images[safeIndex]}
+        src={optimizarImagen(images[safeIndex], ancho)}
         alt={alt}
+        loading="lazy"
+        decoding="async"
         className={imgClassName}
         style={{ width: '100%', height: '100%', objectFit: 'cover', ...imgStyle }}
       />

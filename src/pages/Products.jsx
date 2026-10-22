@@ -6,6 +6,7 @@ import ProductImageCarousel from '../components/ProductImageCarousel';
 import QuickViewModal from '../components/QuickViewModal';
 import { API_URL } from '../utils/adminApi';
 import { track } from '../utils/analytics';
+import { optimizarImagen } from '../utils/sitioContenido';
 
 const WOMPI_WIDGET_SCRIPT_ID = 'wompi-widget-script';
 
@@ -505,8 +506,10 @@ const Products = () => {
                       />
                     ) : (
                       <img
-                        src={product.image}
+                        src={optimizarImagen(product.image, 800)}
                         alt={product.name}
+                        loading="lazy"
+                        decoding="async"
                         style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: disponible ? 1 : 0.42 }}
                         className="product-image"
                       />
@@ -587,7 +590,7 @@ const Products = () => {
                     <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingRight: '0.5rem' }}>
                       {cart.map(item => (
                         <div key={item.id} className="drawer-item" style={{ marginBottom: 0, paddingBottom: 0, border: 'none' }}>
-                          <img src={item.image} alt={item.name} />
+                          <img src={optimizarImagen(item.image, 240)} alt={item.name} />
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <p style={{ fontSize: '1.05rem', fontFamily: 'var(--font-serif)' }}>{item.name}</p>
                             <p className="tabular" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.2rem 0 0.75rem' }}>{item.talla ? `Talla ${item.talla} · ` : ''}${item.price.toLocaleString('es-CO')} COP</p>

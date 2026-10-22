@@ -5,6 +5,7 @@ import ProductImageCarousel from './ProductImageCarousel';
 import TallasEditor from './TallasEditor';
 import { ADMIN_STYLES } from './adminStyles';
 import { adminFetch, API_URL } from '../utils/adminApi';
+import { optimizarImagen } from '../utils/sitioContenido';
 
 const DETALLE_MAX = 120;
 const TALLAS_DEFAULT = [
@@ -264,7 +265,7 @@ const LanzamientosPanel = () => {
               <div key={l.id} className="admin-tile">
                 <div className="admin-tile-media">
                   {imgs.length > 0 ? (
-                    <ProductImageCarousel images={imgs} alt={l.nombre_producto} />
+                    <ProductImageCarousel images={imgs} alt={l.nombre_producto} ancho={600} />
                   ) : (
                     <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Rocket size={32} color="var(--text-dim)" />
@@ -428,7 +429,7 @@ const LanzamientosPanel = () => {
                   <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     {imagenes.map((img) => (
                       <div key={img.key} style={{ position: 'relative' }}>
-                        <img src={img.url} alt="Vista previa" style={{ width: '60px', height: '75px', objectFit: 'cover', border: '1px solid var(--border-strong)', display: 'block' }} />
+                        <img src={optimizarImagen(img.url, 160)} alt="Vista previa" style={{ width: '60px', height: '75px', objectFit: 'cover', border: '1px solid var(--border-strong)', display: 'block' }} />
                         {imagenes.length > 1 && (!editing || editing.estado === 'programado') && (
                           <button type="button" onClick={() => quitarImagen(img.key)} aria-label="Quitar esta imagen"
                             style={{ position: 'absolute', top: '-7px', right: '-7px', width: '19px', height: '19px', borderRadius: '50%', background: 'var(--error)', border: '1px solid var(--bg-secondary)', color: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>

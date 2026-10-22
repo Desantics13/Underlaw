@@ -5,6 +5,7 @@ import ProductImageCarousel from './ProductImageCarousel';
 import TallasEditor from './TallasEditor';
 import { ADMIN_STYLES } from './adminStyles';
 import { adminFetch, API_URL } from '../utils/adminApi';
+import { optimizarImagen } from '../utils/sitioContenido';
 
 const ESTADO_STYLES = {
   activo: { color: 'var(--success)', label: 'Activo' },
@@ -253,7 +254,7 @@ const ProductosPanel = () => {
               <div key={producto.id} className="admin-tile">
                 <div className="admin-tile-media">
                   {producto.imagenes && producto.imagenes.length > 0 ? (
-                    <ProductImageCarousel images={producto.imagenes} alt={producto.nombre_producto} />
+                    <ProductImageCarousel images={producto.imagenes} alt={producto.nombre_producto} ancho={600} />
                   ) : (
                     <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Package size={32} color="var(--text-dim)" />
@@ -368,7 +369,7 @@ const ProductosPanel = () => {
                   <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     {imagenes.map((img) => (
                       <div key={img.key} style={{ position: 'relative' }}>
-                        <img src={img.url} alt="Vista previa" style={{ width: '60px', height: '75px', objectFit: 'cover', border: '1px solid var(--border-strong)', display: 'block' }} />
+                        <img src={optimizarImagen(img.url, 160)} alt="Vista previa" style={{ width: '60px', height: '75px', objectFit: 'cover', border: '1px solid var(--border-strong)', display: 'block' }} />
                         {imagenes.length > 1 && (
                           <button
                             type="button"

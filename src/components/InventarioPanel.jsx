@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Package, Rocket, Search, Check } from 'lucide-react';
 import { ADMIN_STYLES } from './adminStyles';
 import { adminFetch, API_URL } from '../utils/adminApi';
+import { optimizarImagen } from '../utils/sitioContenido';
 
 // Mismo criterio de color que TallasEditor: 0 = agotado (rojo), 1-2 = pocas
 // (dorado), sin contar = gris, el resto normal.
@@ -72,7 +73,7 @@ const FilaInventario = ({ item, tipo, onGuardado }) => {
     <div className="inv-fila" style={{ display: 'flex', gap: '1.25rem', padding: '1.25rem', borderBottom: '1px solid var(--border)', alignItems: 'center', flexWrap: 'wrap' }}>
       <div className="inv-fila-info" style={{ display: 'flex', gap: '1rem', alignItems: 'center', flex: '1 1 260px', minWidth: '220px' }}>
         <div style={{ width: '48px', height: '60px', flexShrink: 0, background: 'var(--bg-tertiary)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {imagen ? <img src={imagen} alt={item.nombre_producto} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Package size={18} color="var(--text-dim)" />}
+          {imagen ? <img src={optimizarImagen(imagen, 160)} loading="lazy" alt={item.nombre_producto} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Package size={18} color="var(--text-dim)" />}
         </div>
         <div style={{ minWidth: 0 }}>
           <p style={{ fontSize: '0.58rem', textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--text-muted)', margin: '0 0 0.15rem' }}>

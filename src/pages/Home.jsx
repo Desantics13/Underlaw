@@ -193,7 +193,7 @@ const Home = () => {
     lanzamiento = {
       etiqueta: `${drop.nombre_lanzamiento} · Programado`,
       nombre: drop.nombre_producto,
-      imagen: drop.imagenes?.[0]?.url,
+      imagen: optimizarImagen(drop.imagenes?.[0]?.url),
       texto: 'Serie corta. Inscríbete y te avisamos por correo en el momento exacto en que abre la compra.',
       precio: `$${Number(drop.precio).toLocaleString('es-CO')} COP`,
       badge: drop.nombre_lanzamiento
@@ -202,7 +202,7 @@ const Home = () => {
     lanzamiento = {
       etiqueta: `${drop.nombre_lanzamiento} · Ya disponible`,
       nombre: drop.nombre_producto,
-      imagen: drop.imagenes?.[0]?.url,
+      imagen: optimizarImagen(drop.imagenes?.[0]?.url),
       texto: 'Ya disponible. Series cortas, sin reposición: cuando se agota, no vuelve.',
       precio: `$${Number(drop.precio).toLocaleString('es-CO')} COP`,
       badge: drop.nombre_lanzamiento
@@ -400,7 +400,7 @@ const Home = () => {
 
               {drop && (
                 <div className="drawer-item">
-                  <img src={drop.imagenes?.[0]?.url} alt={drop.nombre_producto} />
+                  <img src={optimizarImagen(drop.imagenes?.[0]?.url, 240)} alt={drop.nombre_producto} />
                   <div>
                     <p style={{ fontSize: '0.92rem' }}>{drop.nombre_producto}</p>
                     <p className="tabular" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>${Number(drop.precio).toLocaleString('es-CO')} COP</p>
