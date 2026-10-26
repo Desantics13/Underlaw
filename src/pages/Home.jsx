@@ -301,21 +301,6 @@ const Home = () => {
             <h2 className="lanzamiento-nombre">{lanzamiento.nombre}</h2>
             <p className="lanzamiento-desc">{lanzamiento.texto}</p>
 
-            {dropProgramado && (
-              <div className="clock">
-                {[['Días', t.dias], ['Horas', t.horas], ['Min', t.minutos]].map(([label, val]) => (
-                  <div key={label} className="clock-cell">
-                    <div className="clock-num tabular">{String(Math.max(0, val)).padStart(2, '0')}</div>
-                    <div className="clock-label">{label}</div>
-                  </div>
-                ))}
-                <div className="clock-cell">
-                  <div className="clock-num tabular clock-num-gold">{String(Math.max(0, t.segundos)).padStart(2, '0')}</div>
-                  <div className="clock-label">Seg</div>
-                </div>
-              </div>
-            )}
-
             <div className="lanzamiento-cta-row">
               {dropProgramado && (
                 <button type="button" className="premium-button" onClick={abrirSignup}>Inscribirme al drop</button>
@@ -332,7 +317,20 @@ const Home = () => {
 
           <motion.div {...reveal(shouldReduceMotion, 0.1)} className="lanzamiento-foto">
             <img src={lanzamiento.imagen} alt={lanzamiento.nombre} />
-            {lanzamiento.badge && <span className="lanzamiento-badge">{lanzamiento.badge}</span>}
+            {dropProgramado && (
+              <div className="clock-overlay">
+                <p className="clock-overlay-titulo">Disponible en</p>
+                <div className="clock">
+                  {[['Días', t.dias], ['Hrs', t.horas], ['Min', t.minutos], ['Seg', t.segundos]].map(([label, val]) => (
+                    <div key={label} className="clock-cell">
+                      <div className={`clock-num tabular${label === 'Seg' ? ' clock-num-gold' : ''}`}>{String(Math.max(0, val)).padStart(2, '0')}</div>
+                      <div className="clock-label">{label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {!dropProgramado && lanzamiento.badge && <span className="lanzamiento-badge">{lanzamiento.badge}</span>}
           </motion.div>
         </div>
       </section>
@@ -502,9 +500,14 @@ const Home = () => {
         @keyframes ul-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
         .lanzamiento-nombre { font-weight: 300; font-size: clamp(2.1rem, 6vw, 4rem); line-height: 1.02; letter-spacing: -0.02em; margin: 0 0 1.25rem; }
         .lanzamiento-desc { color: var(--text-tertiary); line-height: 1.8; margin: 0 0 2rem; max-width: 44ch; }
-        .clock { display: flex; gap: clamp(1rem, 4vw, 2.25rem); border-top: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft); padding: 1.5rem 0; margin-bottom: 2rem; }
-        .clock-cell { flex: 1; }
-        .clock-num { font-family: var(--font-serif); font-weight: 300; font-size: clamp(2rem, 7vw, 3.2rem); line-height: 1; }
+        .clock-overlay {
+          position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+          background: rgba(5,5,5,0.45); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+        }
+        .clock-overlay-titulo { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.3em; color: var(--text-secondary); margin: 0 0 1.25rem; }
+        .clock { display: flex; gap: clamp(0.75rem, 3vw, 1.75rem); }
+        .clock-cell { text-align: center; min-width: clamp(2.5rem, 9vw, 3.75rem); }
+        .clock-num { font-family: var(--font-serif); font-weight: 300; font-size: clamp(1.75rem, 7vw, 3rem); line-height: 1; }
         .clock-num-gold { color: var(--gold); }
         .clock-label { font-size: 0.56rem; text-transform: uppercase; letter-spacing: 0.2em; color: var(--text-muted); margin-top: 0.5rem; }
         .lanzamiento-cta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
